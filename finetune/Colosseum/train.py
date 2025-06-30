@@ -335,11 +335,11 @@ def experiment(cmd_args):
         exp_cfg.freeze()
     # Initialize Logging =>> W&B
     if dist.get_rank() == 0:
-        wandb.login(key="0fa0d98600c7e9cae06a14debb71ced7b8dd2a63")
+        wandb.login(key="")
         if  cmd_args.debug:
-            wandb.init(entity="1113255710", project="3DVLA_RVT_opensource", name=os.path.dirname(log_dir),mode="disabled")
+            wandb.init(entity="", project="3DVLA_RVT_opensource", name=os.path.dirname(log_dir),mode="disabled")
         else:
-            wandb.init(entity="1113255710", project="3DVLA_RVT_opensource", name=os.path.dirname(log_dir))
+            wandb.init(entity="", project="3DVLA_RVT_opensource", name=os.path.dirname(log_dir))
 
     print("Start training ...", flush=True)
     i = start_epoch
