@@ -53,7 +53,7 @@ class Arguments(tap.Tap):
     save_image: bool = False
     save_obs_outs_dir: str = None
     record_video: bool = False
-    not_include_robot_cameras: bool = False
+    not_include_robot_cameras: bool = True
     video_rotate_cam: bool = False
     video_resolution: int = 480
 

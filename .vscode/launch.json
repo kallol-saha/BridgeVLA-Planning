@@ -1,0 +1,36 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "GemBench Client",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": [
+                "--taskvar",
+                "close_microwave2+0",
+                "--output_file",
+                "/home/ksaha/Research/ModelBasedPlanning/PriorWork/BridgeVLA/result.json",
+                "--microstep_data_dir",
+                "/home/ksaha/Research/ModelBasedPlanning/PriorWork/robot-3dlotus/data/gembench/test_dataset/microsteps/seed300"
+            ]
+        },
+        {
+            "name": "GemBench Action Server",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": [
+                "--base_path",
+                "/home/ksaha/Research/ModelBasedPlanning/PriorWork/BridgeVLA/data/checkpoints/GemBench",
+                "--model_epoch",
+                "40"
+            ]
+        }
+    ]
+}

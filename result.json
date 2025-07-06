@@ -1,0 +1,20 @@
+{"episode_id": 0, "instr": "close the microwave door", "success": 0, "error": "A path could not be found. Most likely due to the target being inaccessible or a collison was detected.", "nsteps": 3}
+{"episode_id": 1, "instr": "push the microwave door shut", "success": 0, "error": "A path could not be found. Most likely due to the target being inaccessible or a collison was detected.", "nsteps": 2}
+{"episode_id": 2, "instr": "push the microwave door shut", "success": 1.0, "error": null, "nsteps": 2}
+{"episode_id": 3, "instr": "push the microwave door shut", "success": 1.0, "error": null, "nsteps": 2}
+{"episode_id": 4, "instr": "close the microwave door", "success": 0, "error": "A path could not be found. Most likely due to the target being inaccessible or a collison was detected.", "nsteps": 3}
+{"episode_id": 5, "instr": "shut the microwave", "success": 1.0, "error": null, "nsteps": 4}
+{"episode_id": 6, "instr": "push the microwave door shut", "success": 1.0, "error": null, "nsteps": 2}
+{"episode_id": 7, "instr": "push the microwave door shut", "success": 1.0, "error": null, "nsteps": 2}
+{"episode_id": 8, "instr": "push the microwave door shut", "success": 1.0, "error": null, "nsteps": 2}
+{"episode_id": 9, "instr": "shut the microwave", "success": 0.0, "error": null, "nsteps": 25}
+{"episode_id": 10, "instr": "shut the microwave", "success": 1.0, "error": null, "nsteps": 8}
+{"episode_id": 11, "instr": "close the microwave door", "success": 1.0, "error": null, "nsteps": 2}
+{"episode_id": 12, "instr": "close microwave", "success": 1.0, "error": null, "nsteps": 2}
+{"episode_id": 13, "instr": "close microwave", "success": 1.0, "error": null, "nsteps": 2}
+{"episode_id": 14, "instr": "shut the microwave", "success": 1.0, "error": null, "nsteps": 2}
+{"episode_id": 15, "instr": "close microwave", "success": 1.0, "error": null, "nsteps": 3}
+{"episode_id": 16, "instr": "shut the microwave", "success": 0.0, "error": null, "nsteps": 25}
+{"episode_id": 17, "instr": "close the microwave door", "success": 1.0, "error": null, "nsteps": 2}
+{"episode_id": 18, "instr": "close the microwave door", "success": 1.0, "error": null, "nsteps": 7}
+{"episode_id": 19, "instr": "push the microwave door shut", "success": 1.0, "error": null, "nsteps": 2}

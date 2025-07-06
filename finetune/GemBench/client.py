@@ -185,4 +185,4 @@ if __name__ == "__main__":
     parser.add_argument('--microstep_data_dir', default='/PATH_TO_GEMBENCH_TEST_DATA/microsteps/seed300')
     args = parser.parse_args()
     server_addr = f"http://{args.ip}:{args.port}/"
-    main(args.taskvar, server_addr, args.microstep_data_dir, args.output_file, record_video=False)
+    main(args.taskvar, server_addr, args.microstep_data_dir, args.output_file, record_video=True)

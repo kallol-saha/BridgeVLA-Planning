@@ -1,0 +1,12 @@
+**/__pycache__/
+*.py[cod]
+*$py.class
+*/**/*.pyc
+**/*.pyc
+
+data/
+finetune/GemBench/gembench_results/
+videos/
+
+*.egg-info/
+**/*.egg-info/
