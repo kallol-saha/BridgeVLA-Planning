@@ -36,6 +36,9 @@ from PIL import Image, ImageDraw
 import torch
 import numpy as np
 import os
+import open3d as o3d
+
+from bridgevla.mvt.utils import plot_pcd
 
 
 def save_point_cloud_with_color(filename, points, colors, keypoint=None):
@@ -61,6 +64,8 @@ def save_point_cloud_with_color(filename, points, colors, keypoint=None):
     if keypoint is not None:
         points = np.vstack([points, keypoint])
         colors = np.vstack([colors, np.array([255, 0, 0])])  # Mark keypoint in red
+
+    plot_pcd(points, colors / 255, frame=True)
 
     # Write to PLY file
     with open(filename, 'w') as f:
@@ -1005,9 +1010,11 @@ class RVTAgent:
             obs,
             pcd,
         )
+        # plot_pcd(pc[0], colors=img_feat[0], frame=True)
+
         pc, img_feat = rvt_utils.move_pc_in_bound(
             pc, img_feat, self.scene_bounds, no_op=not self.move_pc_in_bound
-        )
+        )       # This is cropping the point cloud
         pc_ori = pc[0].clone()
         img_feat_ori=img_feat[0].clone()
         # TODO: Vectorize
@@ -1023,16 +1030,20 @@ class RVTAgent:
             rev_trans.append(b)
         pc = pc_new
 
-        bs = len(pc)
-        nc = self._net_mod.num_img
-        h = w = self._net_mod.img_size
-        dyn_cam_info = None
-        out = self._network(
+        # self._net_mod is the MVT model
+        bs = len(pc)        # batch size
+        nc = self._net_mod.num_img         # number of channels in the image feature
+        h = w = self._net_mod.img_size     # height and width of the image feature
+        dyn_cam_info = None                # dynamic camera information
+        
+        out = self._network(        # !!! self._network is the MVT model from mvt.py !!!
             pc=pc,
             img_feat=img_feat,
             img_aug=0,  # no img augmentation while acting
             language_goal=language_goal,
         )
+        print(self._network.renderer.pts_vis[self._network.renderer.pts_hm_vis.argmax()])
+        
         if visualize:
             q_trans, rot_q, grip_q, collision_q, y_q, _ = self.get_q(
                 out, dims=(bs, nc, h, w), only_pred=True, get_q_trans=True
@@ -1044,6 +1055,15 @@ class RVTAgent:
         pred_wpt, pred_rot_quat, pred_grip, pred_coll = self.get_pred(
             out, rot_q, grip_q, collision_q, y_q, rev_trans, dyn_cam_info
         )
+        print(self.hm_pts_vis[self.hm_pts_scores.argmax()])
+        print(pred_wpt[0])
+
+        # !!! ------------ My 3D Heatmap Visualization Code ------------ #
+        combined_points = np.concatenate([self.hm_pts_vis, pc_ori.cpu().numpy()], axis=0)
+        combined_colors = np.concatenate([self.hm_pts_colors, img_feat_ori.cpu().numpy()], axis=0)
+        plot_pcd(combined_points, combined_colors, frame=True)
+        # -------------------------------------------------------------- #
+
         if visualize:
             print("Visualizing")
             save_dir=visualize_save_dir
@@ -1055,10 +1075,15 @@ class RVTAgent:
 
             mvt1_img=out["mvt1_ori_img"][0,:,3:6]
             mvt2_img=out["mvt2_ori_img"][0,:,3:6]
+
             q_trans_1=q_trans[0,:,:3].clone().view(224,224,3)
             q_trans_2=q_trans[0,:,3:6].clone().view(224,224,3)
+
+            # !!! Each channel of q_trans_1 and q_trans_2 is an independent 2D heatmap for that view !!!
+
             q_trans_1=apply_channel_wise_softmax(q_trans_1)*100
             q_trans_2=apply_channel_wise_softmax(q_trans_2)*100
+
             visualize_images(mvt1_img,q_trans_1,save_dir=os.path.join(save_dir,"mvt1"))
             visualize_images(mvt2_img,q_trans_2,save_dir=os.path.join(save_dir,"mvt2"))
             save_point_cloud_with_color(os.path.join(save_dir,"point_cloud.ply"), pc_ori.cpu().numpy(), img_feat_ori.cpu().numpy(), pred_wpt[0].cpu().numpy())
@@ -1105,6 +1130,17 @@ class RVTAgent:
         pred_wpt_local = self._net_mod.get_wpt(
             out, mvt1_or_mvt2, dyn_cam_info, y_q
         )
+
+        # !!! ------------ My 3D Heatmap Visualization Code ------------ #
+        self.hm_pts_vis = rev_trans[0](
+            torch.tensor(
+                self._net_mod.hm_pts_vis, 
+                dtype = pred_wpt_local.dtype, 
+                device = pred_wpt_local.device)).cpu().detach().numpy()
+        
+        self.hm_pts_colors = self._net_mod.hm_pts_colors
+        self.hm_pts_scores = self._net_mod.hm_pts_scores
+        # -------------------------------------------------------------- #
 
         pred_wpt = []
         for _pred_wpt_local, _rev_trans in zip(pred_wpt_local, rev_trans):
