@@ -4,6 +4,13 @@
 */**/*.pyc
 **/*.pyc
 
+finetune/bridgevla/libs/PyRep/
+finetune/bridgevla/libs/RLBench/
+finetune/GemBench/PyRep/
+finetune/GemBench/RLBench/
+finetune/GemBench/CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz
+finetune/GemBench/CoppeliaSim_Edu_V4_1_0_Ubuntu20_04/
+
 data/
 finetune/GemBench/gembench_results/
 videos/

@@ -202,18 +202,18 @@ def setup_distributed(backend="nccl", port=None):
         os.environ["LOCAL_RANK"] = str(rank % num_gpus)
         os.environ["RANK"] = str(rank)
     else:
-        if os.getenv('DEBUG', 'false').lower() == 'true':
-            print("Can not find RANK and WORLD_SIZE, Debug Mode")
-            os.environ["RANK"] = "0"
-            os.environ["WORLD_SIZE"] = "1"
-            os.environ["MASTER_ADDR"] = "127.0.0.1"
-            os.environ["MASTER_PORT"] = "9001"
-            os.environ["LOCAL_RANK"] = "0"
-            rank = int(os.environ["RANK"])
-            world_size = int(os.environ["WORLD_SIZE"])
-        else:
-            rank = int(os.environ["RANK"])
-            world_size = int(os.environ["WORLD_SIZE"])
+        # if os.getenv('DEBUG', 'false').lower() == 'true':
+        # print("Can not find RANK and WORLD_SIZE, Debug Mode")
+        os.environ["RANK"] = "0"
+        os.environ["WORLD_SIZE"] = "1"
+        os.environ["MASTER_ADDR"] = "127.0.0.1"
+        os.environ["MASTER_PORT"] = "9001"
+        os.environ["LOCAL_RANK"] = "0"
+        rank = int(os.environ["RANK"])
+        world_size = int(os.environ["WORLD_SIZE"])
+        # else:
+        #     rank = int(os.environ["RANK"])
+        #     world_size = int(os.environ["WORLD_SIZE"])
     
     dist.init_process_group(
         backend=backend,
@@ -225,12 +225,12 @@ def setup_distributed(backend="nccl", port=None):
 
 def experiment(cmd_args):
     setup_distributed()
+
     world_size = int(os.environ["WORLD_SIZE"])
     rank = int(os.environ["RANK"])
     local_rank = int(os.environ["LOCAL_RANK"])
     print("local_rank:",local_rank)
     device_id = f"cuda:{local_rank}"
-
     torch.cuda.set_device(device_id)
 
     exp_cfg = exp_cfg_mod.get_cfg_defaults()
@@ -257,21 +257,18 @@ def experiment(cmd_args):
         print(f"dict(exp_cfg)={dict(exp_cfg)}")
     exp_cfg.freeze()
 
-
     BATCH_SIZE_TRAIN = exp_cfg.bs
     print(f"BATCH_SIZE_TRAIN={BATCH_SIZE_TRAIN}")
 
-    
-
-
     EPOCHS = exp_cfg.epochs
-    data_folder=cmd_args.data_folder
-            
-
+    data_folder=cmd_args.data_folder            
 
     log_dir = get_logdir(cmd_args, exp_cfg,dist)
     t_start = time.time()
+
+    # !!! Dataset loading:
     train_dataset = Gembench_Dataset(data_folder,device=device_id,cameras=cmd_args.cameras,ep_per_task=cmd_args.ep_per_task)
+    
     print("Total tasks: ",train_dataset.num_tasks)
     print("Total trajectories: ",train_dataset.num_task_paths)
     print("Dataset Length: " , len(train_dataset))
@@ -393,11 +390,11 @@ def experiment(cmd_args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.set_defaults(entry=lambda cmd_args: parser.print_help())
-    parser.add_argument("--refresh_replay", action="store_true", default=False) # Not using the replay buffer
-    parser.add_argument("--mvt_cfg_path", type=str, default="../bridgevla/mvt/configs/rvt2.yaml")
-    parser.add_argument("--exp_cfg_path", type=str, default="configs/gembench_config.yaml")
-    parser.add_argument("--mvt_cfg_opts", type=str, default="")  # Override MVT model config with extra params at runtime
-    parser.add_argument("--exp_cfg_opts", type=str, default="")  # Override experiment config with extra params at runtime
+    parser.add_argument("--refresh_replay", action="store_true", default=False)
+    parser.add_argument("--mvt_cfg_path", type=str, default="finetune/GemBench/bridgevla/mvt/configs/rvt2.yaml")
+    parser.add_argument("--exp_cfg_path", type=str, default="finetune/GemBench/configs/gembench_config.yaml")
+    parser.add_argument("--mvt_cfg_opts", type=str, default="")
+    parser.add_argument("--exp_cfg_opts", type=str, default="")
     parser.add_argument("--exp_note", type=str, default="")
     parser.add_argument("--log_dir", type=str, default="/data/ModelBasedPlanning/GEMBench/logs")
     parser.add_argument("--data_folder", type=str, default="/data/ModelBasedPlanning/GEMBench/train_dataset")

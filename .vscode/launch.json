@@ -10,15 +10,13 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": "${command:pickArgs}"
-        },
-        {
-            "name": "BridgeVLA Pre-Training",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${file}",
-            "console": "integratedTerminal",
-            "args": "--branches 1"
+            "args": [
+                "--debug",
+                "--freeze_vision_tower",
+                "--load_pretrain",
+                "--ep_per_task",
+                "10"
+            ]
         },
         {
             "name": "GemBench Client",
