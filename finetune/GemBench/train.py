@@ -393,11 +393,11 @@ def experiment(cmd_args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.set_defaults(entry=lambda cmd_args: parser.print_help())
-    parser.add_argument("--refresh_replay", action="store_true", default=False)
+    parser.add_argument("--refresh_replay", action="store_true", default=False) # Not using the replay buffer
     parser.add_argument("--mvt_cfg_path", type=str, default="../bridgevla/mvt/configs/rvt2.yaml")
     parser.add_argument("--exp_cfg_path", type=str, default="configs/gembench_config.yaml")
-    parser.add_argument("--mvt_cfg_opts", type=str, default="")
-    parser.add_argument("--exp_cfg_opts", type=str, default="")
+    parser.add_argument("--mvt_cfg_opts", type=str, default="")  # Override MVT model config with extra params at runtime
+    parser.add_argument("--exp_cfg_opts", type=str, default="")  # Override experiment config with extra params at runtime
     parser.add_argument("--exp_note", type=str, default="")
     parser.add_argument("--log_dir", type=str, default="/data/ModelBasedPlanning/GEMBench/logs")
     parser.add_argument("--data_folder", type=str, default="/data/ModelBasedPlanning/GEMBench/train_dataset")

@@ -15,5 +15,8 @@ data/
 finetune/GemBench/gembench_results/
 videos/
 
+debug/*
+debug.png
+
 *.egg-info/
 **/*.egg-info/

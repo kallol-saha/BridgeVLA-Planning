@@ -2,6 +2,7 @@ import torch
 import point_renderer.ops as ops
 from point_renderer.cameras import OrthographicCameras, PerspectiveCameras
 from point_renderer.renderer import PointRenderer
+import matplotlib.pyplot as plt
 
 import point_renderer.rvt_ops as rvt_ops
 
@@ -234,7 +235,7 @@ class RVTBoxRenderer():
 
         self._check_device(hm, "hm")
 
-        x, nc, h, w = hm.shape
+        x, nc, h, w = hm.shape      # There are 3 heatmaps of shape (224, 224) => Total shape (1, 3, 224, 224)
         assert x == 1
         assert nc == len(self.cameras)
         assert self.img_size == (h, w)
@@ -243,7 +244,32 @@ class RVTBoxRenderer():
         # (bs, np, nc)
         pts_hm = pts_hm.permute(2, 1, 0)
         # (bs, np)
-        pts_hm = torch.mean(pts_hm, -1)
+        pts_hm = torch.mean(pts_hm, -1)         # !!! This is averaging over the 3 heatmaps to create a 3D grid heatmap, from which we can get the action
+        
+        # !!! ------------ My 3D Heatmap Visualization Code ------------ #
+
+        pts_vis = pts.cpu().numpy()
+        pts_hm_vis = pts_hm.cpu().numpy()[0]
+
+        vis_mask = (pts_hm_vis > (pts_hm_vis.max() / 2)) > 0.01
+
+        pts_vis = pts_vis[vis_mask]
+        pts_hm_vis = pts_hm_vis[vis_mask]
+        
+        # Normalize pts_hm_vis to [0,1] range
+        pts_hm_vis = (pts_hm_vis - pts_hm_vis.min()) / (pts_hm_vis.max() - pts_hm_vis.min())
+
+        # Convert heatmap values to colors using plasma colormap
+        pts_hm_colors = plt.cm.plasma(pts_hm_vis)[:, :3]  # Only take RGB values, drop alpha
+
+        self.pts_vis = pts_vis
+        self.pts_hm_vis = pts_hm_vis
+        self.pts_hm_colors = pts_hm_colors
+
+        print(pts_vis.shape, pts_hm_vis.shape)
+        
+        # -------------------------------------------------------------- #
+
         if non_max_sup and topk > 1:
             _pts = pts.clone()
             pts = []

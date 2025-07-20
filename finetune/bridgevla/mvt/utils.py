@@ -5,6 +5,55 @@ import sys
 import torch
 import numpy as np
 
+import open3d as o3d
+
+def plot_pcd(pcd, colors=None, frame=False):
+
+
+
+    if type(pcd) == torch.Tensor:
+        pcd = pcd.cpu().detach().numpy()
+    if colors is not None and type(colors) == torch.Tensor:
+        colors = colors.cpu().detach().numpy()
+
+    # Ensure pcd has 2-3 dimensions
+    if len(pcd.shape) > 3 or len(pcd.shape) < 2:
+        raise ValueError("Point cloud must have 2 or 3 dimensions")
+
+    # Find dimension with length 3 and move it to end
+    three_dim = None
+    for i, dim in enumerate(pcd.shape):
+        if dim == 3:
+            three_dim = i
+            break
+    
+    if three_dim is None:
+        raise ValueError("Point cloud must have one dimension of length 3")
+        
+    # Move dimension with length 3 to end and reshape
+    if three_dim != len(pcd.shape)-1:
+        dims = list(range(len(pcd.shape)))
+        dims.remove(three_dim)
+        dims.append(three_dim)
+        pcd = np.transpose(pcd, dims)
+    
+    pcd = pcd.reshape(-1, 3)
+
+    pts_vis = o3d.geometry.PointCloud()
+    pts_vis.points = o3d.utility.Vector3dVector(pcd)
+
+    if colors is not None:
+        pts_vis.colors = o3d.utility.Vector3dVector(colors)
+
+    geometries = [pts_vis]
+
+    if frame:
+        frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
+            size=0.2, origin=[0, 0, 0]
+        )
+        geometries.append(frame)
+
+    o3d.visualization.draw_geometries(geometries)
 
 def place_pc_in_cube(
     pc, app_pc=None, with_mean_or_bounds=True, scene_bounds=None, no_op=False

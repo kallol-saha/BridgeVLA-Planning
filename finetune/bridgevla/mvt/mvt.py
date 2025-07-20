@@ -153,6 +153,16 @@ class MVT(nn.Module):
             )
             wpt = out["rev_trans"](wpt)
 
+            # !!! ------------ My 3D Heatmap Visualization Code ------------ #
+            self.hm_pts_vis = out["rev_trans"](
+            torch.tensor(
+                self.renderer.pts_vis, 
+                dtype = wpt.dtype, 
+                device = wpt.device)).cpu().detach().numpy()
+            
+            self.hm_pts_scores = self.renderer.pts_hm_vis
+            self.hm_pts_colors = self.renderer.pts_hm_colors
+            # -------------------------------------------------------------- #
         return wpt
 
 
@@ -342,8 +352,9 @@ class MVT(nn.Module):
             wpt_local_stage_one = wpt_local_stage_one.clone().detach()
         else:
             wpt_local_stage_one = wpt_local
-        
    
+        # This forward pass contains the PaliGemma model
+        # !!! self.mvt1 is the MVT model from mvt_single.py !!!
         out = self.mvt1(
             img=img,
             wpt_local=wpt_local_stage_one,
@@ -384,12 +395,14 @@ class MVT(nn.Module):
             
             if save_path is not None:
                 # Create directory if it doesn't exist
-                os.makedirs(os.path.dirname(save_path), exist_ok=True)
+                # os.makedirs(os.path.dirname(save_path), exist_ok=True)
                 plt.savefig(save_path, dpi=300, bbox_inches='tight')
                 print(f"Image saved to {save_path}")
             
-            plt.show()
-        # visualize_tensor(img[0,:,3:6], save_path="/PATH_TO_SAVE_DIR/debug.png")
+            # plt.show()
+            
+        visualize_tensor(img[0,:,3:6], save_path="debug.png")
+        # This is true at inference
         if self.stage_two:
             with torch.no_grad():
                 # adding then noisy location for training
@@ -418,7 +431,10 @@ class MVT(nn.Module):
                         out, y_q=None, mvt1_or_mvt2=True,
                         dyn_cam_info=None,
                     )
-                    pc, rev_trans = mvt_utils.trans_pc(
+                    print("Heatmap argmax:", self.renderer.pts_vis[self.renderer.pts_hm_vis.argmax()])
+                    print("wpt_local:", wpt_local)
+                    
+                    pc, rev_trans = mvt_utils.trans_pc(         # !!! wpt_local matches the argmax of renderer pts_vis here
                         pc, loc=wpt_local, sca=self.st_sca
                     )
                     # bad name!
@@ -435,7 +451,7 @@ class MVT(nn.Module):
                     dyn_cam_info=None,
                 )
         
-            out_mvt2 = self.mvt1(
+            out_mvt2 = self.mvt1(           # There is another heatmap sampling here!
                 img=img,
                 wpt_local=wpt_local2,
                 rot_x_y=rot_x_y,

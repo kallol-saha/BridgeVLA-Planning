@@ -181,8 +181,8 @@ if __name__ == "__main__":
     parser.add_argument('--taskvar', default='close_microwave2+0')
     parser.add_argument('--ip', type=str, default="localhost")
     parser.add_argument('--port', type=int, default=13003)
-    parser.add_argument('--output_file', type=str, default="PATH_TO_SAVE_RESULT_JSON/result.json")
-    parser.add_argument('--microstep_data_dir', default='/PATH_TO_GEMBENCH_TEST_DATA/microsteps/seed300')
+    parser.add_argument('--output_file', type=str, default="/home/ksaha/Research/ModelBasedPlanning/PriorWork/BridgeVLA/result.json")
+    parser.add_argument('--microstep_data_dir', default='/home/ksaha/Research/ModelBasedPlanning/PriorWork/robot-3dlotus/data/gembench/test_dataset/microsteps/seed300')
     args = parser.parse_args()
     server_addr = f"http://{args.ip}:{args.port}/"
     main(args.taskvar, server_addr, args.microstep_data_dir, args.output_file, record_video=True)

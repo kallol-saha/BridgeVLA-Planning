@@ -141,6 +141,7 @@ class MVT(nn.Module):
                 feat_fc_dim += self.final_dim
             
 
+            # !!! This is the MLP that predicts final action, there are different MLPs for rotation !!!
             def get_feat_fc(
                 _feat_in_size,
                 _feat_out_size,
@@ -298,25 +299,26 @@ class MVT(nn.Module):
         bs, num_img, img_feat_dim, h, w = img.shape
         assert num_img == self.num_img
         assert h == w == self.img_size
-        # only use rgb part
-        # print("input image feature shape:",img.shape)
+        
+        # Input shape => (batch_size, number_of_views, feature_dimensions, height, width)
+        # Extract the rgb part of the image feature
         img = img[:,:, 3:6, :, :] # bs,3,3,224,224
 
-
+        # Get the text prompts and images
         prompts =[ text[0][0] for text in language_goal]# ["text1","text2"...]
-        # print("The prompts:",prompts)
         images = [[MVT.trans_cuda_tensor_2_PIL(example)for example in examples] for examples in img]# bs,3
 
-
+        # Process the image and text inputs for the PaliGemma model: (self.processor is the PaliGemma processor)
         assert len(prompts)==len(images)
         model_inputs = self.processor(text=prompts, images=images, return_tensors="pt",padding="longest")
         model_inputs = model_inputs.to(self.model.dtype).to(self.model.device)
+        
+        # Forward pass through the PaliGemma model
         outputs = self.model(**model_inputs, output_hidden_states=True)
 
+        # Get the features of the last layer of the PaliGemma model
         hidden_states = outputs.hidden_states  
-
-        x = hidden_states[-1]  # get the features of the last layer
-
+        x = hidden_states[-1]
 
         # get image tokens
         image_tokens= []
@@ -340,12 +342,18 @@ class MVT(nn.Module):
 
         # concat all the output
         image_tokens = torch.stack(image_tokens)
+
+        # image_tokens => (1, 768, 2048) =>
+        # !!! Token Rearrangement happens here !!!
         x = rearrange(image_tokens, 'b (c h1 h2) w -> b w c h1 h2', c=self.num_img, h1=self.num_pat_img, h2=self.num_pat_img) 
+        # x => (1, 2048, 3, 16, 16)
+        
         feat = []
         _feat = torch.max(torch.max(x, dim=-1)[0], dim=-1)[0]
         _feat = _feat.view(bs, -1)
         feat.append(_feat)
 
+        # !!! Reshaping tokens for the convex upsampling !!!
         x = (
             x.transpose(1, 2)
             .clone()
@@ -354,10 +362,11 @@ class MVT(nn.Module):
             )
         )
         x=x.to(torch.float32)
+        # x => (3, 2048, 16, 16)
         
+        # !!! Convex Upsampling happens here !!!
         trans = self.up0(x)
         trans = trans.view(bs, self.num_img, h, w)
-
 
         if not forward_no_feat:
 
@@ -452,7 +461,7 @@ class MVT(nn.Module):
         bs = out["trans"].shape[0]
 
         q_trans = out["trans"].view(bs, nc, h * w)
-        hm = torch.nn.functional.softmax(q_trans, 2)
+        hm = torch.nn.functional.softmax(q_trans, 2)        # !!! This is the softmax of the 2D heatmaps on the 2nd channel (num_pixels, 3) !!!
         hm = hm.view(bs, nc, h, w)
 
         if dyn_cam_info is None:

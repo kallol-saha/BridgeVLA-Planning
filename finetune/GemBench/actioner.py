@@ -61,6 +61,8 @@ class MyActioner(object):
         # obs_state_dict["lang_goal_tokens"] = clip.tokenize(instruction).to(self.agent._device)
         # import pdb;
         # pdb.set_trace()
+
+        # Re-assign keys so the cameras are in the key name
         for idx, cam in enumerate(self.agent.cameras):
             obs_state_dict[f"{cam}_rgb"] = np.transpose(obs_state_dict["rgb"][idx], [2, 0, 1])[None]
             obs_state_dict[f"{cam}_point_cloud"] = np.transpose(obs_state_dict["pc"][idx], [2, 0, 1])[None]
@@ -80,7 +82,12 @@ class MyActioner(object):
                 obs_state_dict[k] = v.to(self.agent._device)    
             obs_state_dict[k] = obs_state_dict[k].unsqueeze(0)
         obs_state_dict["language_goal"] =   [[[instruction]]]
-        action = self.agent.act(step=step_id,observation=obs_state_dict,return_gembench_action=True)
+
+        action = self.agent.act(step=step_id,
+                                observation=obs_state_dict,
+                                return_gembench_action=True,
+                                visualize=True,
+                                visualize_save_dir="debug")
         return action
     
 
