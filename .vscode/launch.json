@@ -5,6 +5,20 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "BridgeVLA Finetune",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": [
+                "--debug",
+                "--freeze_vision_tower",
+                "--load_pretrain",
+                "--ep_per_task",
+                "10"
+            ]
+        },
+        {
             "name": "GemBench Client",
             "type": "debugpy",
             "request": "launch",

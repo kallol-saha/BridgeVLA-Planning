@@ -38,7 +38,7 @@ class Gembench_Dataset(torch.utils.data.Dataset):
         self.data_path = data_path ## folder will .pkl data files one for each example
         self.train_data = []
         self.cameras=cameras
-        time.sleep(5)
+        # time.sleep(5)
         self.construct_dataset(ep_per_task)
 
         
