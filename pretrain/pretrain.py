@@ -674,8 +674,8 @@ if __name__=="__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--branches", type=int, default=3)
     parser.add_argument("--config_path", type=str, default="pretrain_config.yaml")
-    parser.add_argument("--json_detection_path", type=str, default="/mnt/bn/lpy-lq/hugging_face/RoboPoint_Data/detection_data.json")
-    parser.add_argument("--image_folder", type=str, default="/mnt/bn/lpy-lq/hugging_face/RoboPoint_Data/images")
+    parser.add_argument("--json_detection_path", type=str, default="/data/kallol/BridgeVLA_data/data/pretrain_data/detection_data.json")
+    parser.add_argument("--image_folder", type=str, default="/data/kallol/BridgeVLA_data/data/pretrain_data/")
     args = parser.parse_args()
     json_detection_path=args.json_detection_path
     image_folder=args.image_folder
@@ -707,6 +707,8 @@ if __name__=="__main__":
                 visualize_bboxes_and_heatmap(image, [bbox], action_trans_now, save_path,
                                             bbox_colors=['red', 'lime', 'cyan', 'yellow'],
                                             bbox_width=2)
+                print("")
+
             elif flag=="detection_2":
                 answer_points=ast.literal_eval(raw_label)
                 assert type(answer_points[0]) is tuple and len(answer_points[0])==4

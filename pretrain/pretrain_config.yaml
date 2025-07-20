@@ -1,6 +1,6 @@
 checkpoint_dir: PATH_TO_PRETRAINED_CHECKPOINT
 test_save_path: PATH_TO_SAVE_TEST_IMAGE
-bs: 48
+bs: 2
 lr: 5e-5
 exp_name: debug
 output_dir: PATH_TO_SAVE_OUTPUT

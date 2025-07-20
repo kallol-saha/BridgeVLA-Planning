@@ -1,6 +1,6 @@
 exp_id: ours_gembench
 tasks: all
-bs: 4
+bs: 2
 num_workers: 3
 epochs: 100
 peract:
