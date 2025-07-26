@@ -18,5 +18,8 @@ videos/
 debug/*
 debug.png
 
+*.jpg
+*.png
+
 *.egg-info/
 **/*.egg-info/

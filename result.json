@@ -21,3 +21,6 @@
 {"episode_id": 0, "instr": "close the microwave door", "success": 0, "error": "A path could not be found. Most likely due to the target being inaccessible or a collison was detected.", "nsteps": 3}
 {"episode_id": 0, "instr": "place two of the cups onto the odd cup out", "success": 0, "error": "A path could not be found. Most likely due to the target being inaccessible or a collison was detected.", "nsteps": 4}
 {"episode_id": 0, "instr": "put the crackers box, the chocolate jello box, strawberry jello box, soup can, spam can, mustard bottle and sugar box in the cupboard", "success": 0, "error": "A path could not be found. Most likely due to the target being inaccessible or a collison was detected.", "nsteps": 8}
+{"episode_id": 0, "instr": "put all of the groceries in the cupboard", "success": 0, "error": "A path could not be found because the target is outside of workspace.", "nsteps": 1}
+{"episode_id": 1, "instr": "put all of the groceries in the cupboard", "success": 0, "error": "A path could not be found because the target is outside of workspace.", "nsteps": 1}
+{"episode_id": 0, "instr": "pick up all of the groceries and place them in the cupboard", "success": 0, "error": "A path could not be found because the target is outside of workspace.", "nsteps": 1}

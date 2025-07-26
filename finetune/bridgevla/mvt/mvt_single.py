@@ -318,7 +318,7 @@ class MVT(nn.Module):
 
         # Get the features of the last layer of the PaliGemma model
         hidden_states = outputs.hidden_states  
-        x = hidden_states[-1]
+        x = hidden_states[-1]       # x => (1, 776, 2048) => (b, 776, 2048)
 
         # get image tokens
         image_tokens= []
@@ -338,13 +338,13 @@ class MVT(nn.Module):
             non_zero_output = non_zero_output[:256*self.num_img]
             
             # Add the processed output to the new output list
-            image_tokens.append(non_zero_output)
+            image_tokens.append(non_zero_output)        # non_zero_output => (768, 2048)
 
         # concat all the output
         image_tokens = torch.stack(image_tokens)
 
-        # image_tokens => (1, 768, 2048) =>
-        # !!! Token Rearrangement happens here !!!
+        # image_tokens => (1, 768, 2048) => (b, num_views * 256, token_dim=2048)
+        # !!! Token Rearrangement happens here, the rearranged dimension is 768 !!!
         x = rearrange(image_tokens, 'b (c h1 h2) w -> b w c h1 h2', c=self.num_img, h1=self.num_pat_img, h2=self.num_pat_img) 
         # x => (1, 2048, 3, 16, 16)
         

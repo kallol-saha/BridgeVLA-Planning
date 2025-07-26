@@ -354,12 +354,12 @@ def experiment(cmd_args):
         exp_cfg.freeze()
 
     # Initialize Logging =>> W&B
-    if dist.get_rank() == 0:
-        wandb.login(key="")
-        if  cmd_args.debug:
-            wandb.init(entity="", project="3DVLA_RVT_opensource", name=os.path.dirname(log_dir),mode="disabled")
-        else:
-            wandb.init(entity="", project="3DVLA_RVT_opensource", name=os.path.dirname(log_dir))
+    # if dist.get_rank() == 0:
+    #     wandb.login(key="")
+    #     if  cmd_args.debug:
+    #         wandb.init(entity="", project="3DVLA_RVT_opensource", name=os.path.dirname(log_dir),mode="disabled")
+    #     else:
+    #         wandb.init(entity="", project="3DVLA_RVT_opensource", name=os.path.dirname(log_dir))
 
 
     print("Start training ...", flush=True)
@@ -371,8 +371,8 @@ def experiment(cmd_args):
         print(f"Rank [{dist.get_rank()}], Epoch [{i}]: Training on train dataset")
 
         out = train(agent, train_dataloader, rank=dist.get_rank(),cameras=cmd_args.cameras)
-        if rank == 0:
-            wandb.log(out,step=i)
+        # if rank == 0:
+        #     wandb.log(out,step=i)
         if dist.get_rank()==0 and (i %20==0 or i == end_epoch-1):
             # TODO: add logic to only save some models
             save_agent(agent, f"{log_dir}/model_{i}.pth", i)
@@ -391,19 +391,19 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.set_defaults(entry=lambda cmd_args: parser.print_help())
     parser.add_argument("--refresh_replay", action="store_true", default=False)
-    parser.add_argument("--mvt_cfg_path", type=str, default="finetune/GemBench/bridgevla/mvt/configs/rvt2.yaml")
+    parser.add_argument("--mvt_cfg_path", type=str, default="finetune/bridgevla/mvt/configs/rvt2.yaml")
     parser.add_argument("--exp_cfg_path", type=str, default="finetune/GemBench/configs/gembench_config.yaml")
     parser.add_argument("--mvt_cfg_opts", type=str, default="")
     parser.add_argument("--exp_cfg_opts", type=str, default="")
     parser.add_argument("--exp_note", type=str, default="")
-    parser.add_argument("--log_dir", type=str, default="/data/ModelBasedPlanning/GEMBench/logs")
-    parser.add_argument("--data_folder", type=str, default="/data/ModelBasedPlanning/GEMBench/train_dataset")
+    parser.add_argument("--log_dir", type=str, default="/data/kallol/BridgeVLA_data/GEMBench/logs")
+    parser.add_argument("--data_folder", type=str, default="/data/kallol/BridgeVLA_data/GEMBench/train_dataset")
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--ep_per_task", type=int, default=10000) # use all data
     parser.add_argument("--freeze_vision_tower", action="store_true")
     parser.add_argument("--load_pretrain", action="store_true")
     parser.add_argument("--lr", type=float, default=8e-5)
-    parser.add_argument("--pretrain_path", type=str, default=None)
+    parser.add_argument("--pretrain_path", type=str, default="/data/kallol/BridgeVLA_data/data/checkpoints/pretrain")
     parser.add_argument(
         "--cameras",
         type=str, 

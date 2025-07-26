@@ -15,7 +15,7 @@
                 "--freeze_vision_tower",
                 "--load_pretrain",
                 "--ep_per_task",
-                "10"
+                "2"
             ]
         },
         {
@@ -41,7 +41,7 @@
             "console": "integratedTerminal",
             "args": [
                 "--base_path",
-                "/home/ksaha/Research/ModelBasedPlanning/PriorWork/BridgeVLA/data/checkpoints/GemBench",
+                "/data/kallol/BridgeVLA_data/data/checkpoints/GemBench",
                 "--model_epoch",
                 "40"
             ]

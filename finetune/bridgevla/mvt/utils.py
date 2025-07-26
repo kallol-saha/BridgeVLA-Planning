@@ -6,44 +6,95 @@ import torch
 import numpy as np
 
 import open3d as o3d
+import matplotlib.pyplot as plt
+
+def gaussian_3d_pcd(mean, std, num_points):
+    """
+    Generate a point cloud sampled uniformly from inside a 3D ellipsoid
+    (centered at mean, axes lengths given by std),
+    and color the points using the plasma colormap based on Mahalanobis distance.
+    """
+    # Uniformly sample inside a unit sphere
+    points = []
+    while len(points) < num_points:
+        p = np.random.uniform(-1, 1, 3)
+        if np.linalg.norm(p) <= 1:
+            points.append(p)
+    points = np.array(points)
+    # Scale by std and shift by mean
+    points = points * std + mean
+
+    # Color by Mahalanobis distance (for visualization)
+    mahal = np.sqrt(np.sum(((points - mean) / std) ** 2, axis=1))
+    mahal = mahal / mahal.max()  # Normalize to [0, 1]
+    colors = plt.cm.plasma(1 - mahal)[:, :3]
+
+    return points, (colors * 255).astype(np.uint8)
+
+
+def reshape_to_points(data):
+    """
+    Reshape data to have shape (-1, 3) by finding the dimension with length 3
+    and moving it to the end, then flattening all other dimensions.
+    Also creates a writable copy of the data.
+    
+    Args:
+        data: numpy array with one dimension of length 3
+        
+    Returns:
+        writable reshaped data with shape (-1, 3)
+    """
+    # Ensure data has 2-3 dimensions
+    if len(data.shape) > 3 or len(data.shape) < 2:
+        raise ValueError("Data must have 2 or 3 dimensions")
+
+    # Find dimension with length 3 and move it to end
+    three_dim = None
+    for i, dim in enumerate(data.shape):
+        if dim == 3:
+            three_dim = i
+            break
+    
+    if three_dim is None:
+        raise ValueError("Data must have one dimension of length 3")
+        
+    # Move dimension with length 3 to end and reshape
+    if three_dim != len(data.shape)-1:
+        dims = list(range(len(data.shape)))
+        dims.remove(three_dim)
+        dims.append(three_dim)
+        data = np.transpose(data, dims)
+    
+    data = data.reshape(-1, 3)
+    
+    # Create writable copy
+    data_new = np.zeros(data.shape)
+    data_new[:] = data[:]
+    
+    return data_new
 
 def plot_pcd(pcd, colors=None, frame=False):
-
-
 
     if type(pcd) == torch.Tensor:
         pcd = pcd.cpu().detach().numpy()
     if colors is not None and type(colors) == torch.Tensor:
         colors = colors.cpu().detach().numpy()
 
-    # Ensure pcd has 2-3 dimensions
-    if len(pcd.shape) > 3 or len(pcd.shape) < 2:
-        raise ValueError("Point cloud must have 2 or 3 dimensions")
-
-    # Find dimension with length 3 and move it to end
-    three_dim = None
-    for i, dim in enumerate(pcd.shape):
-        if dim == 3:
-            three_dim = i
-            break
-    
-    if three_dim is None:
-        raise ValueError("Point cloud must have one dimension of length 3")
-        
-    # Move dimension with length 3 to end and reshape
-    if three_dim != len(pcd.shape)-1:
-        dims = list(range(len(pcd.shape)))
-        dims.remove(three_dim)
-        dims.append(three_dim)
-        pcd = np.transpose(pcd, dims)
-    
-    pcd = pcd.reshape(-1, 3)
+    # Reshape point cloud to (-1, 3) and create writable copy
+    pcd_new = reshape_to_points(pcd)
 
     pts_vis = o3d.geometry.PointCloud()
-    pts_vis.points = o3d.utility.Vector3dVector(pcd)
+    pts_vis.points = o3d.utility.Vector3dVector(pcd_new)
 
     if colors is not None:
-        pts_vis.colors = o3d.utility.Vector3dVector(colors)
+        # Apply the same reshaping to colors as we did to pcd
+        colors_new = reshape_to_points(colors)
+        
+        # Ensure colors are in the right range [0, 1]
+        if colors_new.max() > 1.0:
+            colors_new = colors_new / 255.0
+        
+        pts_vis.colors = o3d.utility.Vector3dVector(colors_new)
 
     geometries = [pts_vis]
 

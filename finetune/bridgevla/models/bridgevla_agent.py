@@ -65,7 +65,7 @@ def save_point_cloud_with_color(filename, points, colors, keypoint=None):
         points = np.vstack([points, keypoint])
         colors = np.vstack([colors, np.array([255, 0, 0])])  # Mark keypoint in red
 
-    plot_pcd(points, colors / 255, frame=True)
+    # plot_pcd(points, colors / 255, frame=True)
 
     # Write to PLY file
     with open(filename, 'w') as f:
@@ -1061,7 +1061,7 @@ class RVTAgent:
         # !!! ------------ My 3D Heatmap Visualization Code ------------ #
         combined_points = np.concatenate([self.hm_pts_vis, pc_ori.cpu().numpy()], axis=0)
         combined_colors = np.concatenate([self.hm_pts_colors, img_feat_ori.cpu().numpy()], axis=0)
-        plot_pcd(combined_points, combined_colors, frame=True)
+        # plot_pcd(combined_points, combined_colors, frame=True)
         # -------------------------------------------------------------- #
 
         if visualize:

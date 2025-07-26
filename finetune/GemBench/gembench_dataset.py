@@ -26,6 +26,11 @@ import msgpack
 import msgpack_numpy
 msgpack_numpy.patch()
 import copy
+
+import cv2
+from bridgevla.mvt.utils import plot_pcd, gaussian_3d_pcd
+
+
 class Gembench_Dataset(torch.utils.data.Dataset):
     def __init__(   
                 self,
@@ -64,6 +69,8 @@ class Gembench_Dataset(torch.utils.data.Dataset):
                 self.num_task_paths+=1
                 episode = msgpack.unpackb(episode)
                 num_steps = len(episode["key_frameids"])
+
+                # plot_pcd(episode["pc"][0][0], episode["rgb"][0][0])
                     
                 for i in range(num_steps-1):
                     sample = {}
@@ -74,9 +81,40 @@ class Gembench_Dataset(torch.utils.data.Dataset):
                            
                         }
                     sample["gripper_pose"] = episode["action"][i+1]
+
+                    # ------------ Plotting Action as 3D Gaussian ------------ #
+                    camera_keys = ["left_shoulder", "right_shoulder", "wrist", "front"]
+                    scene_pcds = []
+                    scene_pcd_colors = []
+                    for cam in camera_keys:
+                        pcd = sample[cam]["pcd"].transpose(1, 2, 0).reshape(-1, 3)
+                        colors = sample[cam]["rgb"].transpose(1, 2, 0).reshape(-1, 3)
+                        scene_pcds.append(pcd)
+                        scene_pcd_colors.append(colors)
+                    scene_pcd = np.concatenate(scene_pcds, axis=0)
+                    scene_pcd_colors = np.concatenate(scene_pcd_colors, axis=0)
+
+                    action_3d_gaussian, action_3d_gaussian_colors = gaussian_3d_pcd(sample["gripper_pose"][:3], 
+                                                                                    np.array([0.03, 0.02, 0.01]), 
+                                                                                    500)
+                    full_pcd = np.concatenate([scene_pcd, action_3d_gaussian], axis=0)
+                    full_pcd_colors = np.concatenate([scene_pcd_colors, action_3d_gaussian_colors], axis=0)
+                    plot_pcd(full_pcd, full_pcd_colors)
+                    # -------------------------------------------------------- #
+
+                    # Calculate normalized time value between -1 and 1, where -1 represents the start (i=0) 
+                    # and 1 represents the end (i=num_steps-1) of the trajectory
                     time = (1. - (i / float(num_steps - 1))) * 2. - 1.
                     sample["low_dim_state"] = np.concatenate(
                         [sample["gripper_pose"], [time]]).astype(np.float32)
+                    
+                    # ----------- Visualize Gripper Pose ------------ #
+                    gripper_on_image = episode['gripper_pose'][i]['front']
+                    image = np.zeros_like(episode['rgb'][i][-1], dtype=np.uint8)
+                    image[:] = episode['rgb'][i][-1][:]
+                    image[gripper_on_image[1] - 5 : gripper_on_image[1] + 5, gripper_on_image[0] - 5 : gripper_on_image[0] + 5] = [255, 0, 0]
+                    cv2.imwrite("gripper_pose.png", cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
+                    # ------------------------------------------------ #
                     
                     sample["ignore_collisions"] = 1.0
                     sample["lang_goal"] = instruction_dict[task]

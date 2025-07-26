@@ -35,6 +35,8 @@ from utils.peract_utils_gembench import (
     IMAGE_SIZE,
 )
 
+from bridgevla.mvt.utils import plot_pcd, gaussian_3d_pcd
+
 class MyActioner(object):
     def __init__(self,base_path,model_epoch=40):
         model_path = os.path.join(base_path, f"model_{model_epoch}.pth")
@@ -62,11 +64,20 @@ class MyActioner(object):
         # import pdb;
         # pdb.set_trace()
 
+        global_point_cloud = []
+        global_rgb = []
+
         # Re-assign keys so the cameras are in the key name
         for idx, cam in enumerate(self.agent.cameras):
             obs_state_dict[f"{cam}_rgb"] = np.transpose(obs_state_dict["rgb"][idx], [2, 0, 1])[None]
             obs_state_dict[f"{cam}_point_cloud"] = np.transpose(obs_state_dict["pc"][idx], [2, 0, 1])[None]
-        
+
+            global_point_cloud.append(obs_state_dict[f"{cam}_point_cloud"].transpose(2, 3, 0, 1).reshape(-1, 3))
+            global_rgb.append(obs_state_dict[f"{cam}_rgb"].transpose(2, 3, 0, 1).reshape(-1, 3))
+
+        global_point_cloud = np.concatenate(global_point_cloud, axis=0)
+        global_rgb = np.concatenate(global_rgb, axis=0)
+
         del obs_state_dict["rgb"]
         del obs_state_dict["pc"]
         del obs_state_dict['arm_links_info']
@@ -81,7 +92,8 @@ class MyActioner(object):
             elif isinstance(v, torch.Tensor):
                 obs_state_dict[k] = v.to(self.agent._device)    
             obs_state_dict[k] = obs_state_dict[k].unsqueeze(0)
-        obs_state_dict["language_goal"] =   [[[instruction]]]
+        # obs_state_dict["language_goal"] =   [[[instruction]]]
+        obs_state_dict["language_goal"] =   [[['grasp cheezit box']]]
 
         action = self.agent.act(step=step_id,
                                 observation=obs_state_dict,
