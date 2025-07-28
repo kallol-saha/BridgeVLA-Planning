@@ -1,0 +1,47 @@
+{
+  
+  "put_groceries_in_cupboard+0": [
+    "put the crackers box in the cupboard",
+    "pick up the crackers box and place it in the cupboard",
+    "move the crackers box to the bottom shelf",
+    "put away the crackers box in the cupboard"
+  ],
+  "put_groceries_in_cupboard+3": [
+    "put the soup can in the cupboard",
+    "pick up the soup can and place it in the cupboard",
+    "move the soup can to the bottom shelf",
+    "put away the soup can in the cupboard"
+  ],
+  "put_groceries_in_cupboard+4": [
+    "put the tuna can in the cupboard",
+    "pick up the tuna can and place it in the cupboard",
+    "move the tuna can to the bottom shelf",
+    "put away the tuna can in the cupboard"
+  ],
+  "put_groceries_in_cupboard+6": [
+    "put the coffee can in the cupboard",
+    "pick up the coffee can and place it in the cupboard",
+    "move the coffee can to the bottom shelf",
+    "put away the coffee can in the cupboard"
+  ],
+  "put_groceries_in_cupboard+7": [
+    "put the mustard bottle in the cupboard",
+    "pick up the mustard bottle and place it in the cupboard",
+    "move the mustard bottle to the bottom shelf",
+    "put away the mustard bottle in the cupboard"
+  ],
+  "put_groceries_in_cupboard+8": [
+    "put the sugar box in the cupboard",
+    "pick up the sugar box and place it in the cupboard",
+    "move the sugar box to the bottom shelf",
+    "put away the sugar box in the cupboard"
+  ],
+  "put_all_groceries_in_cupboard+0": [
+    "put all of the groceries in the cupboard",
+    "pick up all of the groceries and place them in the cupboard",
+    "move the groceries to the shelves",
+    "put the groceries on the table into the cupboard",
+    "put away the groceries in the cupboard",
+    "put the crackers box, the chocolate jello box, strawberry jello box, soup can, spam can, mustard bottle and sugar box in the cupboard"
+  ]
+}

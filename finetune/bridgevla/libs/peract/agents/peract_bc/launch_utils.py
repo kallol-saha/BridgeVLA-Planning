@@ -28,18 +28,26 @@ from yarr.replay_buffer.replay_buffer import ReplayElement, ReplayBuffer
 from yarr.replay_buffer.uniform_replay_buffer import UniformReplayBuffer
 from yarr.replay_buffer.task_uniform_replay_buffer import TaskUniformReplayBuffer
 
-from ...helpers import demo_loading_utils, utils
-from ...helpers.preprocess_agent import PreprocessAgent
-from ...helpers.clip.core.clip import tokenize
-from ...agents.peract_bc.perceiver_lang_io import PerceiverVoxelLangEncoder
-from ...agents.peract_bc.qattention_peract_bc_agent import QAttentionPerActBCAgent
-from ...agents.peract_bc.qattention_stack_agent import QAttentionStackAgent
+from bridgevla.libs.peract.helpers import demo_loading_utils, utils
+from bridgevla.libs.peract.helpers.preprocess_agent import PreprocessAgent
+from bridgevla.libs.peract.helpers.clip.core.clip import tokenize
+from bridgevla.libs.peract.agents.peract_bc.perceiver_lang_io import PerceiverVoxelLangEncoder
+from bridgevla.libs.peract.agents.peract_bc.qattention_peract_bc_agent import QAttentionPerActBCAgent
+from bridgevla.libs.peract.agents.peract_bc.qattention_stack_agent import QAttentionStackAgent
+
+# from ...helpers import demo_loading_utils, utils
+# from ...helpers.preprocess_agent import PreprocessAgent
+# from ...helpers.clip.core.clip import tokenize
+# from ...agents.peract_bc.perceiver_lang_io import PerceiverVoxelLangEncoder
+# from ...agents.peract_bc.qattention_peract_bc_agent import QAttentionPerActBCAgent
+# from ...agents.peract_bc.qattention_stack_agent import QAttentionStackAgent
 
 import torch
 import torch.nn as nn
 import multiprocessing as mp
 from torch.multiprocessing import Process, Value, Manager
-from ...helpers.clip.core.clip import build_model, load_clip, tokenize
+# from ...helpers.clip.core.clip import build_model, load_clip, tokenize
+from bridgevla.libs.peract.helpers.clip.core.clip import build_model, load_clip, tokenize
 from omegaconf import DictConfig
 
 REWARD_SCALE = 100.0

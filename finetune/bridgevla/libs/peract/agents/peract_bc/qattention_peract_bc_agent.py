@@ -192,6 +192,7 @@ class QAttentionPerActBCAgent(Agent):
         if device is None:
             device = torch.device('cpu')
 
+        # !!! Voxelize here
         self._voxelizer = VoxelGrid(
             coord_bounds=self._coordinate_bounds,
             voxel_size=self._voxel_size,
@@ -201,6 +202,7 @@ class QAttentionPerActBCAgent(Agent):
             max_num_coords=np.prod(self._image_resolution) * self._num_cameras,
         )
 
+        # !!! This is the main Q-function that predicts the action
         self._q = QFunction(self._perceiver_encoder,
                             self._voxelizer,
                             self._bounds_offset,
@@ -553,7 +555,7 @@ class QAttentionPerActBCAgent(Agent):
         if self._include_low_dim_state:
             proprio = observation['low_dim_state']
 
-        obs, pcd = self._act_preprocess_inputs(observation)
+        obs, pcd = self._act_preprocess_inputs(observation)     # !!! This is the last use of observation, just returns a dictionary of rgbs and pcds from each camera
 
         # correct batch size and device
         obs = [[o[0][0].to(self._device), o[1][0].to(self._device)] for o in obs]

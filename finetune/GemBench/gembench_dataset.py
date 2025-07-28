@@ -99,7 +99,7 @@ class Gembench_Dataset(torch.utils.data.Dataset):
                                                                                     500)
                     full_pcd = np.concatenate([scene_pcd, action_3d_gaussian], axis=0)
                     full_pcd_colors = np.concatenate([scene_pcd_colors, action_3d_gaussian_colors], axis=0)
-                    plot_pcd(full_pcd, full_pcd_colors)
+                    # plot_pcd(full_pcd, full_pcd_colors)
                     # -------------------------------------------------------- #
 
                     # Calculate normalized time value between -1 and 1, where -1 represents the start (i=0) 
@@ -128,7 +128,111 @@ class Gembench_Dataset(torch.utils.data.Dataset):
         sample=self.train_data[idx]
         sample["lang_goal"] = random.choice(sample["lang_goal"])   # randomly choose one instruction for every fetching. This is important for generalization.
         return sample
-    
+
+
+class Shelf_Packing_Dataset(torch.utils.data.Dataset):
+    def __init__(   
+                self,
+                data_path,
+                device,
+                cameras=["front", "left_shoulder", "right_shoulder", "wrist"],
+                ep_per_task=1000,
+            ):
+        self.device = device
+        self.data_path = data_path ## folder will .pkl data files one for each example
+        self.train_data = []
+        self.cameras=cameras
+        # time.sleep(5)
+        self.construct_dataset(ep_per_task)
+
+        
+    def construct_dataset(self, ep_per_task):
+        instruction_path = os.path.join(self.data_path, "taskvars_instructions_shelf_packing.json")
+        instruction_dict = json.load(open(instruction_path, "r"))
+        
+        episode_path = os.path.join(self.data_path, "keysteps_bbox/seed0")
+        self.num_tasks=len(os.listdir(episode_path))
+        self.num_task_paths=0
+        for task in tqdm(os.listdir(episode_path)):
+
+            if task in instruction_dict:
+
+                task_path = os.path.join(episode_path, task)
+                task_all_episode = lmdb.open(
+                    task_path,
+                    readonly=True,
+                    meminit=False,
+                    lock=False      
+                )
+                for i, data in enumerate(task_all_episode.begin().cursor()):
+                    episode = data[1]
+                    if i >= ep_per_task:
+                        break
+                    self.num_task_paths+=1
+                    episode = msgpack.unpackb(episode)
+                    num_steps = len(episode["key_frameids"])
+
+                    # plot_pcd(episode["pc"][0][0], episode["rgb"][0][0])
+                        
+                    for i in range(num_steps-1):
+                        sample = {}
+                        for cam_idx, cam in enumerate(self.cameras):
+                            sample[cam] = {
+                                "pcd": np.transpose(episode["pc"][i][cam_idx], (2, 0, 1)),
+                                "rgb": np.transpose(episode["rgb"][i][cam_idx], (2, 0, 1))
+                            
+                            }
+                        sample["gripper_pose"] = episode["action"][i+1]
+
+                        # ------------ Plotting Action as 3D Gaussian ------------ #
+                        camera_keys = ["left_shoulder", "right_shoulder", "wrist", "front"]
+                        scene_pcds = []
+                        scene_pcd_colors = []
+                        for cam in camera_keys:
+                            pcd = sample[cam]["pcd"].transpose(1, 2, 0).reshape(-1, 3)
+                            colors = sample[cam]["rgb"].transpose(1, 2, 0).reshape(-1, 3)
+                            scene_pcds.append(pcd)
+                            scene_pcd_colors.append(colors)
+                        scene_pcd = np.concatenate(scene_pcds, axis=0)
+                        scene_pcd_colors = np.concatenate(scene_pcd_colors, axis=0)
+
+                        action_3d_gaussian, action_3d_gaussian_colors = gaussian_3d_pcd(sample["gripper_pose"][:3], 
+                                                                                        np.array([0.03, 0.02, 0.01]), 
+                                                                                        500)
+                        full_pcd = np.concatenate([scene_pcd, action_3d_gaussian], axis=0)
+                        full_pcd_colors = np.concatenate([scene_pcd_colors, action_3d_gaussian_colors], axis=0)
+                        # print(instruction_dict[task])
+                        # plot_pcd(full_pcd, full_pcd_colors)
+                        # -------------------------------------------------------- #
+
+                        # Calculate normalized time value between -1 and 1, where -1 represents the start (i=0) 
+                        # and 1 represents the end (i=num_steps-1) of the trajectory
+                        time = (1. - (i / float(num_steps - 1))) * 2. - 1.
+                        sample["low_dim_state"] = np.concatenate(
+                            [sample["gripper_pose"], [time]]).astype(np.float32)
+                        
+                        # ----------- Visualize Gripper Pose ------------ #
+                        gripper_on_image = episode['gripper_pose'][i]['front']
+                        image = np.zeros_like(episode['rgb'][i][-1], dtype=np.uint8)
+                        image[:] = episode['rgb'][i][-1][:]
+                        image[gripper_on_image[1] - 5 : gripper_on_image[1] + 5, gripper_on_image[0] - 5 : gripper_on_image[0] + 5] = [255, 0, 0]
+                        cv2.imwrite("gripper_pose.png", cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
+                        # ------------------------------------------------ #
+                        
+                        sample["ignore_collisions"] = 1.0
+                        sample["lang_goal"] = instruction_dict[task]
+                        sample["tasks"] = task
+                        self.train_data.append(copy.deepcopy(sample))
+                    
+    def __len__(self):
+        return len(self.train_data)
+
+    def __getitem__(self, idx):
+        sample=self.train_data[idx]
+        sample["lang_goal"] = random.choice(sample["lang_goal"])   # randomly choose one instruction for every fetching. This is important for generalization.
+        return sample
+
+
 if __name__ == "__main__":
     dataset = Gembench_Dataset(data_path="/PATH_TO_GEMBENCH_TRAIN_DATA/train_dataset", device="cuda:0",ep_per_task=3)
     data=dataset[0]
