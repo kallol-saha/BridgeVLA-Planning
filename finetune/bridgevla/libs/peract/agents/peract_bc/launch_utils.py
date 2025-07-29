@@ -54,12 +54,12 @@ REWARD_SCALE = 100.0
 LOW_DIM_SIZE = 4
 
 
-def create_replay(batch_size: int, timesteps: int,
-                  prioritisation: bool, task_uniform: bool,
-                  save_dir: str, cameras: list,
-                  voxel_sizes,
-                  image_size=[128, 128],
-                  replay_size=3e5):
+def create_replay(batch_size: int, 
+                  timesteps: int, 
+                  cameras: list,
+                  voxel_sizes: list,
+                  image_size: list = [256, 256],
+                  replay_size: int = 1e3):
 
     trans_indicies_size = 3 * len(voxel_sizes)
     rot_and_grip_indicies_size = (3 + 1)
@@ -81,10 +81,10 @@ def create_replay(batch_size: int, timesteps: int,
         observation_elements.append(
             ObservationElement('%s_point_cloud' % cname, (3, *image_size),
                                np.float32))  # see pyrep/objects/vision_sensor.py on how pointclouds are extracted from depth frames
-        observation_elements.append(
-            ObservationElement('%s_camera_extrinsics' % cname, (4, 4,), np.float32))
-        observation_elements.append(
-            ObservationElement('%s_camera_intrinsics' % cname, (3, 3,), np.float32))
+        # observation_elements.append(
+        #     ObservationElement('%s_camera_extrinsics' % cname, (4, 4,), np.float32))
+        # observation_elements.append(
+        #     ObservationElement('%s_camera_intrinsics' % cname, (3, 3,), np.float32))
 
     # discretized translation, discretized rotation, discrete ignore collision, 6-DoF gripper pose, and pre-trained language embeddings
     observation_elements.extend([
@@ -107,11 +107,11 @@ def create_replay(batch_size: int, timesteps: int,
     ])
 
     extra_replay_elements = [
-        ReplayElement('demo', (), np.bool),
+        ReplayElement('demo', (), bool),
     ]
 
     replay_buffer = TaskUniformReplayBuffer(
-        save_dir=save_dir,
+        # save_dir=save_dir,
         batch_size=batch_size,
         timesteps=timesteps,
         replay_capacity=int(replay_size),
@@ -363,6 +363,7 @@ def create_agent(cfg: DictConfig):
 
     num_rotation_classes = int(360. // cfg.method.rotation_resolution)
     qattention_agents = []
+    # !!! This is for a multiple inference pipeline, selecting voxels and selecting voxels inside that again.
     for depth, vox_size in enumerate(cfg.method.voxel_sizes):
         last = depth == len(cfg.method.voxel_sizes) - 1
         perceiver_encoder = PerceiverVoxelLangEncoder(
@@ -370,11 +371,19 @@ def create_agent(cfg: DictConfig):
             iterations=cfg.method.transformer_iterations,
             voxel_size=vox_size,
             initial_dim = 3 + 3 + 1 + 3,
-            low_dim_size=4,
+            low_dim_size=0, # !!! Changed this
             layer=depth,
-            num_rotation_classes=num_rotation_classes if last else 0,
-            num_grip_classes=2 if last else 0,
-            num_collision_classes=2 if last else 0,
+
+            # Only predict rotation and gripper action for the last layer of depth, 
+            # because you cannot "zoom in" if you already predicted a rotation
+            # num_rotation_classes=num_rotation_classes if last else 0,
+            # num_grip_classes=2 if last else 0,
+            # num_collision_classes=2 if last else 0,
+
+            num_rotation_classes=0,
+            num_grip_classes=0,
+            num_collision_classes=0,
+
             input_axis=3,
             num_latents = cfg.method.num_latents,
             latent_dim = cfg.method.latent_dim,
@@ -413,7 +422,7 @@ def create_agent(cfg: DictConfig):
             rot_loss_weight=cfg.method.rot_loss_weight,
             grip_loss_weight=cfg.method.grip_loss_weight,
             collision_loss_weight=cfg.method.collision_loss_weight,
-            include_low_dim_state=True,
+            include_low_dim_state=False,    # !!! Changed this
             image_resolution=cam_resolution,
             batch_size=cfg.replay.batch_size,
             voxel_feature_size=3,

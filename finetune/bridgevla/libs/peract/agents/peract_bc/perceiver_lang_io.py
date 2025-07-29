@@ -208,7 +208,8 @@ class PerceiverVoxelLangEncoder(nn.Module):
         spatial_size = voxel_size // self.voxel_patch_stride  # 100/5 = 20
 
         # 64 voxel features + 64 proprio features (+ 64 lang goal features if concattenated)
-        self.input_dim_before_seq = self.im_channels * 3 if self.lang_fusion_type == 'concat' else self.im_channels * 2
+        # !!! Proprio features are not used now, so we are not concatenating them
+        self.input_dim_before_seq = self.im_channels * 3 if self.lang_fusion_type == 'concat' else self.im_channels #* 2
 
         # CLIP language feature dimensions
         lang_feat_dim, lang_emb_dim, lang_max_seq_len = 1024, 512, 77
@@ -351,13 +352,16 @@ class PerceiverVoxelLangEncoder(nn.Module):
             self,
             ins,
             proprio,
-            lang_goal_emb,
-            lang_token_embs,
-            prev_layer_voxel_grid,
-            bounds,
-            prev_layer_bounds,
+            # lang_goal_emb,
+            # lang_token_embs,
             mask=None,
     ):
+        
+        # Convert to float32
+        ins = ins.float()
+        if proprio is not None:
+            proprio = proprio.float()
+        
         # preprocess input
         d0 = self.input_preprocess(ins)                       # [B,10,100,100,100] -> [B,64,100,100,100]
 
@@ -372,23 +376,23 @@ class PerceiverVoxelLangEncoder(nn.Module):
         assert len(axis) == self.input_axis, 'input must have the same number of axis as input_axis'
 
         # concat proprio
-        if self.low_dim_size > 0:
-            p = self.proprio_preprocess(proprio)              # [B,4] -> [B,64]
-            p = p.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).repeat(1, 1, d, h, w)
-            ins = torch.cat([ins, p], dim=1)                  # [B,128,20,20,20]
+        # if self.low_dim_size > 0:
+        #     p = self.proprio_preprocess(proprio)              # [B,4] -> [B,64]
+        #     p = p.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).repeat(1, 1, d, h, w)
+        #     ins = torch.cat([ins, p], dim=1)                  # [B,128,20,20,20]
 
         # language ablation
-        if self.no_language:
-            lang_goal_emb = torch.zeros_like(lang_goal_emb)
-            lang_token_embs = torch.zeros_like(lang_token_embs)
+        # if self.no_language:
+        #     lang_goal_emb = torch.zeros_like(lang_goal_emb)
+        #     lang_token_embs = torch.zeros_like(lang_token_embs)
 
         # option 1: tile and concat lang goal to input
-        if self.lang_fusion_type == 'concat':
-            lang_emb = lang_goal_emb
-            lang_emb = lang_emb.to(dtype=ins.dtype)
-            l = self.lang_preprocess(lang_emb)
-            l = l.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).repeat(1, 1, d, h, w)
-            ins = torch.cat([ins, l], dim=1)
+        # if self.lang_fusion_type == 'concat':
+        #     lang_emb = lang_goal_emb
+        #     lang_emb = lang_emb.to(dtype=ins.dtype)
+        #     l = self.lang_preprocess(lang_emb)
+        #     l = l.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).repeat(1, 1, d, h, w)
+        #     ins = torch.cat([ins, l], dim=1)
 
         # channel last
         ins = rearrange(ins, 'b d ... -> b ... d')            # [B,20,20,20,128]
@@ -418,13 +422,13 @@ class PerceiverVoxelLangEncoder(nn.Module):
         ins_wo_prev_layers = ins
 
         # option 2: add lang token embs as a sequence
-        if self.lang_fusion_type == 'seq':
-            l = self.lang_preprocess(lang_token_embs)         # [B,77,1024] -> [B,77,128]
-            ins = torch.cat((l, ins), dim=1)                  # [B,8077,128]
+        # if self.lang_fusion_type == 'seq':
+        #     l = self.lang_preprocess(lang_token_embs)         # [B,77,1024] -> [B,77,128]
+        #     ins = torch.cat((l, ins), dim=1)                  # [B,8077,128]
 
-        # add pos encoding to language + flattened grid (the recommended way)
-        if self.pos_encoding_with_lang:
-            ins = ins + self.pos_encoding
+        # # add pos encoding to language + flattened grid (the recommended way)
+        # if self.pos_encoding_with_lang:
+        #     ins = ins + self.pos_encoding
 
         # batchify latents
         x = repeat(self.latents, 'n d -> b n d', b=b)
@@ -445,8 +449,8 @@ class PerceiverVoxelLangEncoder(nn.Module):
         latents = self.decoder_cross_attn(ins, context=x)
 
         # crop out the language part of the output sequence
-        if self.lang_fusion_type == 'seq':
-            latents = latents[:, l.shape[1]:]
+        # if self.lang_fusion_type == 'seq':
+        #     latents = latents[:, l.shape[1]:]
 
         # reshape back to voxel grid
         latents = latents.view(b, *queries_orig_shape[1:-1], latents.shape[-1]) # [B,20,20,20,64]
@@ -471,6 +475,7 @@ class PerceiverVoxelLangEncoder(nn.Module):
 
         # rotation, gripper, and collision MLPs
         rot_and_grip_out = None
+        collision_out = None
         if self.num_rotation_classes > 0:
             feats.extend([self.ss_final(u.contiguous()), self.global_maxp(u).view(b, -1)])
 

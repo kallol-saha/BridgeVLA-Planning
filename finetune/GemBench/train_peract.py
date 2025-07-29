@@ -50,7 +50,7 @@ import socket
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from gembench_dataset import Shelf_Packing_Dataset
-from bridgevla.libs.peract.agents.peract_bc.launch_utils import create_agent
+from bridgevla.libs.peract.agents.peract_bc.launch_utils import create_agent, create_replay, fill_multi_task_replay
 
 def find_free_port():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -83,16 +83,37 @@ def reduce_value(value, average=True):
     return tensor.item() / dist.get_world_size() if average else tensor.item()
 
 
-def train(agent: PreprocessAgent, data_loader, cameras=["front", "left_shoulder", "right_shoulder", "wrist"],rank=0, device="cuda:0"):
+def train(cfg, agent: PreprocessAgent, data_loader, cameras=["front", "left_shoulder", "right_shoulder", "wrist"],rank=0, device="cuda:0"):
     # agent.train()
+    
     print(f"You are using {cameras} for training")
+    
     def move_tensors_to_device(d, device):
         if isinstance(d, dict):
             return {k: move_tensors_to_device(v, device) if isinstance(v, dict) else v.to(device) if isinstance(v, torch.Tensor) else v 
                     for k, v in d.items()}
         return d
+    
     iteration=0
     epoch_losses={}
+
+    rb = create_replay(
+        batch_size=cfg.replay.batch_size,
+        timesteps=cfg.replay.timesteps,
+        voxel_sizes=cfg.method.voxel_sizes,
+        cameras=cameras,
+        image_size=cfg.method.image_size,
+    )
+
+    # fill_multi_task_replay(
+    #     cfg,
+    #     obs_config,
+    #     rank,
+    #     replay_buffer,
+    #     tasks,
+    #     cfg.rlbench.demos,
+    # )
+    
     for raw_batch in  tqdm.tqdm(data_loader, disable=(rank != 0), position=0, leave=True):
         iteration+=1
         batch = move_tensors_to_device(raw_batch, device)
@@ -108,7 +129,7 @@ def train(agent: PreprocessAgent, data_loader, cameras=["front", "left_shoulder"
                 "reset_log": (iteration == 0),
             }
         )
-        out=agent.update(step=iteration, replay_sample=batch)
+        out=agent.update(step=cfg, replay_sample=batch)
         if epoch_losses=={}:
             epoch_losses = {key: [] for key in out.keys()}
         for key in epoch_losses:
@@ -367,7 +388,7 @@ def experiment(cmd_args):
 
         print(f"Rank [{dist.get_rank()}], Epoch [{i}]: Training on train dataset")
 
-        out = train(agent, train_dataloader, rank=dist.get_rank(), cameras=cmd_args.cameras, device=device_id)
+        out = train(peract_cfg, agent, train_dataloader, rank=dist.get_rank(), cameras=cmd_args.cameras, device=device_id)
         # if rank == 0:
         #     wandb.log(out,step=i)
         if dist.get_rank()==0 and (i %20==0 or i == end_epoch-1):

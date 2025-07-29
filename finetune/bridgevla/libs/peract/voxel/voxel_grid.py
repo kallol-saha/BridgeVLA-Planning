@@ -4,9 +4,11 @@
 
 from functools import reduce
 from operator import mul
+import numpy as np
 
 import torch
 from torch import nn
+from bridgevla.mvt.utils import plot_pcd
 
 MIN_DENOMINATOR = 1e-12
 INCLUDE_PER_VOXEL_COORD = False
@@ -125,6 +127,11 @@ class VoxelGrid(nn.Module):
         return out
 
     def _scatter_nd(self, indices, updates):
+        """
+        indices: (batch_size * num_coords) x 4
+        updates: (batch_size * num_coords) x (4 + 1)
+        """
+        
         indices_shape = indices.shape
         num_index_dims = indices_shape[-1]
         flat_updates = updates.view((-1,))
@@ -142,7 +149,7 @@ class VoxelGrid(nn.Module):
 
         flat_scatter = self._scatter_mean(
             flat_updates, flat_indices_for_flat,
-            out=torch.zeros_like(self._flat_output))
+            out=torch.zeros_like(self._flat_output, dtype=flat_updates.dtype))
         return flat_scatter.view(self._total_dims_list)
 
     def coords_to_bounding_voxel_grid(self, coords, coord_features=None,
@@ -153,30 +160,45 @@ class VoxelGrid(nn.Module):
             bb_mins = coord_bounds[..., 0:3]
             bb_maxs = coord_bounds[..., 3:6]
             bb_ranges = bb_maxs - bb_mins
-            res = bb_ranges / (self._dims_orig.float() + MIN_DENOMINATOR)
-            voxel_indicy_denmominator = res + MIN_DENOMINATOR
+            res = bb_ranges / (self._dims_orig.float() + MIN_DENOMINATOR)  # resolution of the voxel grid
+            voxel_indicy_denmominator = res + MIN_DENOMINATOR       # denominator for voxel indexing
 
         bb_mins_shifted = bb_mins - res  # shift back by one
         floor = torch.floor(
-            (coords - bb_mins_shifted.unsqueeze(1)) / voxel_indicy_denmominator.unsqueeze(1)).int()
-        voxel_indices = torch.min(floor, self._dims_m_one)
+            (coords - bb_mins_shifted.unsqueeze(1)) / voxel_indicy_denmominator.unsqueeze(1)).int()  # floor of the coordinates
+        voxel_indices = torch.min(floor, self._dims_m_one)  # clamp the voxel indices to the voxel grid
         voxel_indices = torch.max(voxel_indices, self._dims_m_one_zeros)
+        
+        # !!! --------- Debugging --------- #
+        
+        mask = np.all(((coords[0] > coord_bounds[0, :3]) & (coords[0] < coord_bounds[0, 3:])).cpu().numpy(), axis = -1)
+        # plot_pcd(coords[0][mask], coord_features[0][mask]) 
 
-        # BS x NC x 3
+        # --------------------------------- #
+        
+        # BS x NC x 3 => Concatenate the coordinates and features (pcd and rgb)
         voxel_values = coords
         if coord_features is not None:
             voxel_values = torch.cat([voxel_values, coord_features], -1)
 
+        # Get the number of coordinates
         _, num_coords, _ = voxel_indices.shape
-        # BS x N x (num_batch_dims + 2)
+
+        # BS x N x (3 + 1) => Concatenate the batch indices and the voxel indices,
+        # The purpose of this concatenation is to add batch dimension information to the 
+        # voxel indices for proper tensor operations.
+        # Each row contains [batch_idx, x_idx, y_idx, z_idx], 
+        # so each grid knows which batch it belongs to
         all_indices = torch.cat([
             self._tiled_batch_indices[:, :num_coords], voxel_indices], -1)
 
-        # BS x N x 4
+        # BS x N x 4 => Concatenate the voxel values and the ones_max_coords
         voxel_values_pruned_flat = torch.cat(
             [voxel_values, self._ones_max_coords[:, :num_coords]], -1)
 
-        # BS x x_max x y_max x z_max x 4
+        # BS x x_max x y_max x z_max x 4 => Scatter the point cloud data into the voxel grid.
+        # Each point's features are placed at its corresponding voxel location, 
+        # multiple points can be in the same voxel.
         scattered = self._scatter_nd(
             all_indices.view([-1, 1 + 3]),
             voxel_values_pruned_flat.view(-1, self._voxel_feature_size))

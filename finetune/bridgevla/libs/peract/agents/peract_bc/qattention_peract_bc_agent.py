@@ -34,9 +34,10 @@ from ...helpers.clip.core.clip import build_model, load_clip
 
 import transformers
 from ...helpers.optim.lamb import Lamb
+from ...helpers.utils import point_to_voxel_index_tensor_batched
 
 from torch.nn.parallel import DistributedDataParallel as DDP
-
+from bridgevla.mvt.utils import plot_pcd
 NAME = 'QAttentionAgent'
 
 
@@ -57,7 +58,7 @@ class QFunction(nn.Module):
 
         # distributed training
         if training:
-            self._qnet = DDP(self._qnet, device_ids=[device])
+            self._qnet = DDP(self._qnet, device_ids=[device], find_unused_parameters=True)
 
     def _argmax_3d(self, tensor_orig):
         b, c, d, h, w = tensor_orig.shape  # c will be one
@@ -82,40 +83,39 @@ class QFunction(nn.Module):
             ignore_collision = q_collision[:, -2:].argmax(-1, keepdim=True)
         return coords, rot_and_grip_indicies, ignore_collision
 
-    def forward(self, rgb_pcd, proprio, pcd, lang_goal_emb, lang_token_embs,
+    def forward(self, rgb_pcd, proprio, pcd, 
+                # lang_goal_emb, lang_token_embs,
                 bounds=None, prev_bounds=None, prev_layer_voxel_grid=None):
         # rgb_pcd will be list of list (list of [rgb, pcd])
         b = rgb_pcd[0][0].shape[0]
+
+        # Combine all the point clouds into a single tensor: (B, N, 3)
         pcd_flat = torch.cat(
             [p.permute(0, 2, 3, 1).reshape(b, -1, 3) for p in pcd], 1)
 
-        # flatten RGBs and Pointclouds
+        # Combine all the RGBs into a single tensor: (B, N, 3)
         rgb = [rp[0] for rp in rgb_pcd]
         feat_size = rgb[0].shape[1]
         flat_imag_features = torch.cat(
             [p.permute(0, 2, 3, 1).reshape(b, -1, feat_size) for p in rgb], 1)
 
-        # construct voxel grid
+        # construct voxel grid (bounds are [-x, -y, -z, x, y, z])
         voxel_grid = self._voxelizer.coords_to_bounding_voxel_grid(
             pcd_flat, coord_features=flat_imag_features, coord_bounds=bounds)
+        # voxel_grid => (batch, X, Y, Z, features) => (b, 64, 64, 64, 10)
 
         # swap to channels fist
         voxel_grid = voxel_grid.permute(0, 4, 1, 2, 3).detach()
+        # voxel_grid => (batch, features, X, Y, Z) => (b, 10, 64, 64, 64)
 
         # batch bounds if necessary
         if bounds.shape[0] != b:
             bounds = bounds.repeat(b, 1)
 
-        # forward pass
+        # forward pass (_qnet is the Perceiver Encoder)
         q_trans, \
         q_rot_and_grip,\
-        q_ignore_collisions = self._qnet(voxel_grid,
-                                         proprio,
-                                         lang_goal_emb,
-                                         lang_token_embs,
-                                         prev_layer_voxel_grid,
-                                         bounds,
-                                         prev_bounds)
+        q_ignore_collisions = self._qnet(voxel_grid, proprio)   # This is the Perceiver Encoder
 
         return q_trans, q_rot_and_grip, q_ignore_collisions, voxel_grid
 
@@ -315,8 +315,8 @@ class QAttentionPerActBCAgent(Agent):
         pcds = []
         self._crop_summary = []
         for n in self._camera_names:
-            rgb = replay_sample['%s_rgb' % n]
-            pcd = replay_sample['%s_point_cloud' % n]
+            rgb = replay_sample[n]['rgb']
+            pcd = replay_sample[n]['pcd']    
 
             obs.append([rgb, pcd])
             pcds.append(pcd)
@@ -379,15 +379,34 @@ class QAttentionPerActBCAgent(Agent):
         q_collision_softmax = F.softmax(q_collision, dim=1)
         return q_collision_softmax
 
-    def update(self, step: int, replay_sample: dict) -> dict:
-        action_trans = replay_sample['trans_action_indicies'][:, self._layer * 3:self._layer * 3 + 3].int()
-        action_rot_grip = replay_sample['rot_grip_action_indicies'].int()
+    def update(self, cfg, replay_sample: dict) -> dict:
+
+        # NOTE: This class does not have any neural network layers, 
+        # it just uses the Perceiver Encoder to predict the action.
+        # So, The Main Network is the Perceiver Encoder !!!
+        
+        # Main (x,y,z) action of the voxel grid. Assumes that the layers are listed sequentially along the 2nd axis, so we are indexing the action for this layer
+        action_trans = replay_sample['gripper_pose'][:, :3]
+
+        # Convert action_trans to voxel grid frame:
+        action_trans_voxel = point_to_voxel_index_tensor_batched(
+            action_trans, 
+            self._voxel_size, 
+            self._coordinate_bounds
+        ).int()
+        
+        action_rot_grip = replay_sample['gripper_pose'][:, 3:6]
+        
+        # Convert action_rot_grip to bins
+        
         action_gripper_pose = replay_sample['gripper_pose']
+        
+        
         action_ignore_collisions = replay_sample['ignore_collisions'].int()
-        lang_goal_emb = replay_sample['lang_goal_emb'].float()
-        lang_token_embs = replay_sample['lang_token_embs'].float()
-        prev_layer_voxel_grid = replay_sample.get('prev_layer_voxel_grid', None)
-        prev_layer_bounds = replay_sample.get('prev_layer_bounds', None)
+        # lang_goal_emb = replay_sample['lang_goal_emb'].float()
+        # lang_token_embs = replay_sample['lang_token_embs'].float()
+        # prev_layer_voxel_grid = replay_sample.get('prev_layer_voxel_grid', None)
+        # prev_layer_bounds = replay_sample.get('prev_layer_bounds', None)
         device = self._device
 
         bounds = self._coordinate_bounds.to(device)
@@ -400,11 +419,13 @@ class QAttentionPerActBCAgent(Agent):
             proprio = replay_sample['low_dim_state']
 
         obs, pcd = self._preprocess_inputs(replay_sample)
+        # obs is a list of each element as [rgb, pcd], pcd is a list of each element as just pcd
 
         # batch size
         bs = pcd[0].shape[0]
 
         # SE(3) augmentation of point clouds and actions
+        # !!! Turning off for now to understand code, look through this later (we do need 3D augmentations)
         if self._transform_augmentation:
             action_trans, \
             action_rot_grip, \
@@ -427,31 +448,57 @@ class QAttentionPerActBCAgent(Agent):
         voxel_grid = self._q(obs,
                              proprio,
                              pcd,
-                             lang_goal_emb,
-                             lang_token_embs,
+                            #  lang_goal_emb,
+                            #  lang_token_embs,
                              bounds,
-                             prev_layer_bounds,
-                             prev_layer_voxel_grid)
+                            #  prev_layer_bounds,
+                            #  prev_layer_voxel_grid
+                            )
 
         # argmax to choose best action
         coords, \
         rot_and_grip_indicies, \
         ignore_collision_indicies = self._q.choose_highest_action(q_trans, q_rot_grip, q_collision)
 
+
+        # !!! --------- Debugging : Plot Voxel Grid --------- #
+        
+        vis_b = 0
+        vis_grid = voxel_grid[vis_b].permute(1, 2, 3, 0)
+        mask = torch.norm(vis_grid[..., :3], dim = -1) > 0      # Could just use occupancy instead...
+
+        vis_pts = vis_grid[torch.where(mask)][..., :3]
+        vis_pts = torch.cat([vis_pts, action_trans[0][None]], dim=0)
+
+        vis_rgb = vis_grid[torch.where(mask)][..., 3:6]
+        vis_rgb_voxel = vis_rgb.clone()
+        vis_rgb = torch.cat([vis_rgb, torch.tensor([[255, 0, 0]]).float().to(vis_rgb.device)], dim=0)
+
+        vis_pts_voxel = vis_grid[torch.where(mask)][..., 6:9]
+        action_voxel_center = vis_grid[action_trans_voxel[vis_b, 0], action_trans_voxel[vis_b, 1], action_trans_voxel[vis_b, 2], 6:9]
+        vis_pts_voxel = torch.cat([vis_pts_voxel, action_voxel_center[None]], dim=0)
+        vis_rgb_voxel = torch.cat([vis_rgb_voxel, torch.tensor([[255, 0, 0]]).float().to(vis_rgb.device)], dim=0)
+        
+        # print(vis_pts.shape, vis_rgb.shape)
+        # plot_pcd(vis_pts, vis_rgb)
+
+        # --------------------------------------------------- #
+
         q_trans_loss, q_rot_loss, q_grip_loss, q_collision_loss = 0., 0., 0., 0.
 
-        # translation one-hot
+        # Preparing a one hot voxel grid for supervising the translation action:
         action_trans_one_hot = self._action_trans_one_hot_zeros.clone()
         for b in range(bs):
             gt_coord = action_trans[b, :].int()
             action_trans_one_hot[b, :, gt_coord[0], gt_coord[1], gt_coord[2]] = 1
 
-        # translation loss
+        # Flatten both the prediction and the ground truth, and apply cross entropy loss
         q_trans_flat = q_trans.view(bs, -1)
         action_trans_one_hot_flat = action_trans_one_hot.view(bs, -1)
         q_trans_loss = self._celoss(q_trans_flat, action_trans_one_hot_flat)
 
-        with_rot_and_grip = rot_and_grip_indicies is not None
+        # with_rot_and_grip = rot_and_grip_indicies is not None
+        with_rot_and_grip = False
         if with_rot_and_grip:
             # rotation, gripper, and collision one-hots
             action_rot_x_one_hot = self._action_rot_x_one_hot_zeros.clone()
@@ -517,21 +564,19 @@ class QAttentionPerActBCAgent(Agent):
 
         # Note: PerAct doesn't use multi-layer voxel grids like C2FARM
         # stack prev_layer_voxel_grid(s) from previous layers into a list
-        if prev_layer_voxel_grid is None:
-            prev_layer_voxel_grid = [voxel_grid]
-        else:
-            prev_layer_voxel_grid = prev_layer_voxel_grid + [voxel_grid]
+        # if prev_layer_voxel_grid is None:
+        #     prev_layer_voxel_grid = [voxel_grid]
+        # else:
+        #     prev_layer_voxel_grid = prev_layer_voxel_grid + [voxel_grid]
 
-        # stack prev_layer_bound(s) from previous layers into a list
-        if prev_layer_bounds is None:
-            prev_layer_bounds = [self._coordinate_bounds.repeat(bs, 1)]
-        else:
-            prev_layer_bounds = prev_layer_bounds + [bounds]
+        # # stack prev_layer_bound(s) from previous layers into a list
+        # if prev_layer_bounds is None:
+        #     prev_layer_bounds = [self._coordinate_bounds.repeat(bs, 1)]
+        # else:
+        #     prev_layer_bounds = prev_layer_bounds + [bounds]
 
         return {
-            'total_loss': total_loss,
-            'prev_layer_voxel_grid': prev_layer_voxel_grid,
-            'prev_layer_bounds': prev_layer_bounds,
+            'total_loss': total_loss
         }
 
     def act(self, step: int, observation: dict,

@@ -95,6 +95,22 @@ def point_to_voxel_index(
             np.int32), dims_m_one)
     return voxel_indicy
 
+def point_to_voxel_index_tensor_batched(
+        point: torch.Tensor,
+        voxel_size: torch.Tensor,
+        coord_bounds: torch.Tensor):
+    bb_mins = coord_bounds[:, 0:3]
+    bb_maxs = coord_bounds[:, 3:]
+    dims_m_one = voxel_size - 1
+    bb_ranges = bb_maxs - bb_mins
+    res = bb_ranges / (torch.tensor([voxel_size] * 3, device=point.device, dtype=point.dtype) + 1e-12)
+    voxel_indicy = torch.clamp(
+        torch.floor((point - bb_mins) / (res + 1e-12)),
+        min=0,
+        max=dims_m_one
+    )
+    return voxel_indicy
+
 def voxel_index_to_point(
         voxel_index: torch.Tensor,
         voxel_size: int,
