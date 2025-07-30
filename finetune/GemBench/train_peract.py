@@ -52,6 +52,8 @@ from torch.utils.data.distributed import DistributedSampler
 from gembench_dataset import Shelf_Packing_Dataset
 from bridgevla.libs.peract.agents.peract_bc.launch_utils import create_agent, create_replay, fill_multi_task_replay
 
+WANDB = True
+
 def find_free_port():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(('localhost', 0))  # 0 will make the OS choose an available port
@@ -96,23 +98,6 @@ def train(cfg, agent: PreprocessAgent, data_loader, cameras=["front", "left_shou
     
     iteration=0
     epoch_losses={}
-
-    rb = create_replay(
-        batch_size=cfg.replay.batch_size,
-        timesteps=cfg.replay.timesteps,
-        voxel_sizes=cfg.method.voxel_sizes,
-        cameras=cameras,
-        image_size=cfg.method.image_size,
-    )
-
-    # fill_multi_task_replay(
-    #     cfg,
-    #     obs_config,
-    #     rank,
-    #     replay_buffer,
-    #     tasks,
-    #     cfg.rlbench.demos,
-    # )
     
     for raw_batch in  tqdm.tqdm(data_loader, disable=(rank != 0), position=0, leave=True):
         iteration+=1
@@ -129,7 +114,7 @@ def train(cfg, agent: PreprocessAgent, data_loader, cameras=["front", "left_shou
                 "reset_log": (iteration == 0),
             }
         )
-        out=agent.update(step=cfg, replay_sample=batch)
+        out=agent.update(step=iteration, replay_sample=batch)
         if epoch_losses=={}:
             epoch_losses = {key: [] for key in out.keys()}
         for key in epoch_losses:
@@ -140,8 +125,8 @@ def train(cfg, agent: PreprocessAgent, data_loader, cameras=["front", "left_shou
 
     print()
 
-    if rank == 0:
-        log = print_loss_log(agent)
+    # if rank == 0:
+    #     log = print_loss_log(agent)
     avg_losses = {key: sum(values)/len(values) for key, values in epoch_losses.items()}
     return avg_losses
 
@@ -307,80 +292,17 @@ def experiment(cmd_args):
     if local_rank== 0:
         print("Created Dataset. Time Cost: {} minutes".format((t_end - t_start) / 60.0))
 
-    # mvt_cfg = mvt_cfg_mod.get_cfg_defaults()
-    # if cmd_args.mvt_cfg_path != "":
-    #     mvt_cfg.merge_from_file(cmd_args.mvt_cfg_path)
-    # if cmd_args.mvt_cfg_opts != "":
-    #     mvt_cfg.merge_from_list(cmd_args.mvt_cfg_opts.split(" "))
-
-    # mvt_cfg.feat_dim = get_num_feat(exp_cfg.peract)
-    # mvt_cfg.freeze()
-
-    # for maintaining backward compatibility
-    # assert mvt_cfg.num_rot == exp_cfg.peract.num_rotation_classes, print(
-        # mvt_cfg.num_rot, exp_cfg.peract.num_rotation_classes
-    # )
-
-    # backbone = MVT(
-    #     renderer_device=device_id,
-    #     load_pretrain=cmd_args.load_pretrain,
-    #     pretrain_path=cmd_args.pretrain_path,
-    #     **mvt_cfg,
-    # )
-    # backbone=backbone.to(local_rank)# local rank rather than rank
-    # backbone = DDP(backbone, device_ids=[local_rank],find_unused_parameters=True)
-
-    # !!!
-    # agent = peract_agent.PerActAgent()
     agent = create_agent(peract_cfg)
-
-    # !!! For freezing layers, so commenting for now
-    # freeze_names=["lm_head","embed_tokens"]
-    # if cmd_args.freeze_vision_tower:
-    #     freeze_names.append("vision_tower")
-    #     print("Freeze vision tower")
-    # for name, module in agent._network.named_modules():
-    #     for freeze_name in freeze_names:
-    #         if freeze_name in name:
-    #             for param in module.parameters():
-    #                 param.requires_grad = False
-    #             break
-    
-    # total_params = sum(p.numel() for p in agent._pose_agent.parameters() if p.requires_grad)
-
-    # total_params_billion = total_params / 1e9  
-
-    # print(f'Total trainable parameters: {total_params_billion:.2f} billion')
-    
-    # !!!
-    # agent.build(training=True, device=device_id)
-    # peract_cfg = 
     agent.build(training=True, device=device_id)
-
 
     start_epoch = 0
     end_epoch = EPOCHS
 
-    if dist.get_rank() == 0:
-        ## logging unchanged values to reproduce the same setting
-        temp1 = exp_cfg.peract.lr
-        temp2 = exp_cfg.exp_id
-        exp_cfg.defrost()
-        exp_cfg.peract.lr = old_exp_cfg_peract_lr
-        exp_cfg.exp_id = old_exp_cfg_exp_id
-        # dump_log(exp_cfg, mvt_cfg, cmd_args, log_dir)
-        exp_cfg.peract.lr = temp1
-        exp_cfg.exp_id = temp2
-        exp_cfg.freeze()
-
     # Initialize Logging =>> W&B
-    if dist.get_rank() == 0:
+    if dist.get_rank() == 0 and WANDB:
         wandb.login()
-        wandb.init(project="PerAct_Planning_cracker_box", 
-                   name=os.path.dirname(log_dir))
-        # if  cmd_args.debug:
-        #     wandb.init(entity="", project="3DVLA_RVT_opensource", name=os.path.dirname(log_dir),mode="disabled")
-        # else:
+        # wandb.init(project="PerAct_Planning_cracker_box", 
+        #             name=os.path.dirname(log_dir))
 
 
     print("Start training ...", flush=True)
@@ -394,10 +316,10 @@ def experiment(cmd_args):
         out = train(peract_cfg, agent, train_dataloader, rank=dist.get_rank(), cameras=cmd_args.cameras, device=device_id)
         # if rank == 0:
         #     wandb.log(out,step=i)
-        if dist.get_rank()==0 and (i %20==0 or i == end_epoch-1):
-            # TODO: add logic to only save some models
-            save_agent(agent, f"{log_dir}/model_{i}.pth", i)
-            save_agent(agent, f"{log_dir}/model_last.pth", i)
+        # if dist.get_rank()==0 and (i %20==0 or i == end_epoch-1):
+        #     # TODO: add logic to only save some models
+        #     save_agent(agent, f"{log_dir}/model_{i}.pth", i)
+        #     save_agent(agent, f"{log_dir}/model_last.pth", i)
         i += 1
         dist.barrier()
 

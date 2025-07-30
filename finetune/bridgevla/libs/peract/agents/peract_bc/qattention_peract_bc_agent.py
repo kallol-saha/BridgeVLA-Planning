@@ -37,7 +37,7 @@ from ...helpers.optim.lamb import Lamb
 from ...helpers.utils import point_to_voxel_index_tensor_batched
 
 from torch.nn.parallel import DistributedDataParallel as DDP
-from bridgevla.mvt.utils import plot_pcd
+from bridgevla.mvt.utils import plot_pcd, plot_voxel_grid_with_action, plot_voxel_grid_with_action_cubes
 NAME = 'QAttentionAgent'
 
 
@@ -379,7 +379,7 @@ class QAttentionPerActBCAgent(Agent):
         q_collision_softmax = F.softmax(q_collision, dim=1)
         return q_collision_softmax
 
-    def update(self, cfg, replay_sample: dict) -> dict:
+    def update(self, step, replay_sample: dict) -> dict:
 
         # NOTE: This class does not have any neural network layers, 
         # it just uses the Perceiver Encoder to predict the action.
@@ -463,21 +463,21 @@ class QAttentionPerActBCAgent(Agent):
 
         # !!! --------- Debugging : Plot Voxel Grid --------- #
         
-        vis_b = 0
-        vis_grid = voxel_grid[vis_b].permute(1, 2, 3, 0)
-        mask = torch.norm(vis_grid[..., :3], dim = -1) > 0      # Could just use occupancy instead...
+        # vis_b = 0
+        # vis_grid = voxel_grid[vis_b].permute(1, 2, 3, 0)
+        # mask = torch.norm(vis_grid[..., :3], dim = -1) > 0      # Could just use occupancy instead...
 
-        vis_pts = vis_grid[torch.where(mask)][..., :3]
-        vis_pts = torch.cat([vis_pts, action_trans[0][None]], dim=0)
+        # vis_pts = vis_grid[torch.where(mask)][..., :3]
+        # vis_pts = torch.cat([vis_pts, action_trans[0][None]], dim=0)
 
-        vis_rgb = vis_grid[torch.where(mask)][..., 3:6]
-        vis_rgb_voxel = vis_rgb.clone()
-        vis_rgb = torch.cat([vis_rgb, torch.tensor([[255, 0, 0]]).float().to(vis_rgb.device)], dim=0)
+        # vis_rgb = vis_grid[torch.where(mask)][..., 3:6]
+        # vis_rgb_voxel = vis_rgb.clone()
+        # vis_rgb = torch.cat([vis_rgb, torch.tensor([[255, 0, 0]]).float().to(vis_rgb.device)], dim=0)
 
-        vis_pts_voxel = vis_grid[torch.where(mask)][..., 6:9]
-        action_voxel_center = vis_grid[action_trans_voxel[vis_b, 0], action_trans_voxel[vis_b, 1], action_trans_voxel[vis_b, 2], 6:9]
-        vis_pts_voxel = torch.cat([vis_pts_voxel, action_voxel_center[None]], dim=0)
-        vis_rgb_voxel = torch.cat([vis_rgb_voxel, torch.tensor([[255, 0, 0]]).float().to(vis_rgb.device)], dim=0)
+        # vis_pts_voxel = vis_grid[torch.where(mask)][..., 6:9]
+        # action_voxel_center = vis_grid[action_trans_voxel[vis_b, 0], action_trans_voxel[vis_b, 1], action_trans_voxel[vis_b, 2], 6:9]
+        # vis_pts_voxel = torch.cat([vis_pts_voxel, action_voxel_center[None]], dim=0)
+        # vis_rgb_voxel = torch.cat([vis_rgb_voxel, torch.tensor([[255, 0, 0]]).float().to(vis_rgb.device)], dim=0)
         
         # print(vis_pts.shape, vis_rgb.shape)
         # plot_pcd(vis_pts, vis_rgb)
@@ -575,9 +575,20 @@ class QAttentionPerActBCAgent(Agent):
         # else:
         #     prev_layer_bounds = prev_layer_bounds + [bounds]
 
+        if step % 99 == 0:
+            # Visualization:
+            action_voxels = torch.cat([coords[0][None], action_trans_voxel[0][None]], dim=0)
+            action_colors = torch.zeros_like(action_voxels, dtype=torch.float32)
+            action_colors[0, 0] = 255.
+            action_colors[1, 1] = 255.
+            # plot_voxel_grid_with_action(voxel_grid[0], action_voxels, action_colors)
+
+            plot_voxel_grid_with_action_cubes(voxel_grid[0], action_voxels, action_colors)
+
         return {
             'total_loss': total_loss
         }
+
 
     def act(self, step: int, observation: dict,
             deterministic=False) -> ActResult:

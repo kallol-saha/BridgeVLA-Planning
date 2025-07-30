@@ -18,6 +18,8 @@ videos/
 debug/*
 debug.png
 
+wandb/
+
 *.jpg
 *.png
 

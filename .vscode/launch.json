@@ -15,7 +15,7 @@
                 "--freeze_vision_tower",
                 "--load_pretrain",
                 "--ep_per_task",
-                "2"
+                "1000"
             ]
         },
         {

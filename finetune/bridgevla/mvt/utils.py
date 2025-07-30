@@ -106,6 +106,162 @@ def plot_pcd(pcd, colors=None, frame=False):
 
     o3d.visualization.draw_geometries(geometries)
 
+
+
+def plot_voxel_grid_with_action(voxel_grid: torch.Tensor, 
+                    action_voxels: torch.Tensor,
+                    action_colors: torch.Tensor):
+    """
+    Plot the voxel grid with the action translation in the voxel grid
+    Args:
+        voxel_grid: (10, D, H, W)
+        action_voxels: (N, 3)
+        action_colors: (N, 3)
+    """
+    
+    vis_grid = voxel_grid.permute(1, 2, 3, 0)
+
+    # Remove the action voxels from the voxel grid:
+    vis_grid[action_voxels[:, 0], 
+             action_voxels[:, 1], 
+             action_voxels[:, 2], 
+             :3] = 0.
+
+    # Mask out the points that are not in the voxel grid:
+    mask = torch.norm(vis_grid[..., :3], dim = -1) > 0      # Could just use occupancy instead...
+    vis_pts = vis_grid[torch.where(mask)][..., 6:9]
+    vis_rgb = vis_grid[torch.where(mask)][..., 3:6]
+
+    # Add the action voxels to the voxel grid point cloud
+    action_voxel_center = vis_grid[action_voxels[:, 0], 
+                                   action_voxels[:, 1], 
+                                   action_voxels[:, 2], 
+                                   6:9]
+    
+    vis_pts = torch.cat([vis_pts, action_voxel_center], dim=0)
+    vis_rgb = torch.cat([vis_rgb, action_colors], dim=0)
+
+    plot_pcd(vis_pts, vis_rgb)
+
+
+def create_cube_without_points(cube_size=64):
+    """
+    Create a single transparent cube with only its edges visible (no points).
+    
+    Args:
+        cube_size: Size of the cube
+    
+    Returns:
+        Open3D LineSet geometry for the cube edges
+    """
+    # Create the cube edges (12 edges of a cube)
+    cube_points = [
+        [0, 0, 0],           # 0: bottom front left
+        [cube_size, 0, 0],   # 1: bottom front right
+        [cube_size, cube_size, 0], # 2: bottom back right
+        [0, cube_size, 0],   # 3: bottom back left
+        [0, 0, cube_size],   # 4: top front left
+        [cube_size, 0, cube_size], # 5: top front right
+        [cube_size, cube_size, cube_size], # 6: top back right
+        [0, cube_size, cube_size]  # 7: top back left
+    ]
+    
+    # Define the 12 edges of the cube
+    cube_edges = [
+        [0, 1], [1, 2], [2, 3], [3, 0],  # bottom face
+        [4, 5], [5, 6], [6, 7], [7, 4],  # top face
+        [0, 4], [1, 5], [2, 6], [3, 7]   # vertical edges
+    ]
+    
+    # Create line set for cube edges
+    line_set = o3d.geometry.LineSet()
+    line_set.points = o3d.utility.Vector3dVector(cube_points)
+    line_set.lines = o3d.utility.Vector2iVector(cube_edges)
+    line_set.colors = o3d.utility.Vector3dVector([[0.5, 0.5, 0.5]] * len(cube_edges))  # Grey edges
+    
+    return line_set
+
+
+def plot_voxel_grid_with_action_cubes(voxel_grid, action_voxels, action_colors, cube_size=1., action_cube_size=0.03):
+    """
+    Plot voxel grid with action voxels as larger cubes and enclose everything in a transparent cube.
+    
+    Args:
+        voxel_grid: Voxel grid tensor of shape (features, X, Y, Z)
+        action_voxels: Action voxel indices of shape (num_actions, 3)
+        action_colors: Colors for action voxels of shape (num_actions, 3)
+        cube_size: Size of the main voxel grid cube
+        action_cube_size: Size multiplier for action cubes (relative to voxel size)
+    """
+    geometries = []
+    
+    # Create the main transparent cube that encloses everything
+    main_cube = create_cube_without_points(cube_size)
+    geometries.append(main_cube)
+    
+    # Convert voxel grid to numpy and permute to (X, Y, Z, features)
+    vis_grid = voxel_grid.permute(1, 2, 3, 0).cpu().numpy()
+    
+    # Remove the action voxels from the voxel grid for point cloud visualization
+    for i in range(action_voxels.shape[0]):
+        vis_grid[action_voxels[i, 0], 
+                 action_voxels[i, 1], 
+                 action_voxels[i, 2], 
+                 :3] = 0.
+    
+    # Mask out the points that are not in the voxel grid
+    mask = np.linalg.norm(vis_grid[..., :3], axis=-1) > 0
+    vis_pts = vis_grid[np.where(mask)][..., 6:9]  # Voxel center coordinates
+    vis_rgb = vis_grid[np.where(mask)][..., 3:6]  # RGB colors
+    
+    # Create point cloud from voxel grid
+    if len(vis_pts) > 0:
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(vis_pts)
+        pcd.colors = o3d.utility.Vector3dVector(vis_rgb / 255.)
+        geometries.append(pcd)
+    
+    # Create larger cubes for action voxels
+    for i in range(action_voxels.shape[0]):
+        # Get action voxel center coordinates
+        action_voxel_center = vis_grid[action_voxels[i, 0], 
+                                       action_voxels[i, 1], 
+                                       action_voxels[i, 2], 
+                                       6:9]  # Voxel center coordinates
+        
+        # Create cube for this action voxel
+        cube = o3d.geometry.TriangleMesh.create_box(
+            width=action_cube_size, 
+            height=action_cube_size, 
+            depth=action_cube_size
+        )
+        
+        # Position the cube at the action voxel center
+        cube.translate(action_voxel_center - action_cube_size/2)
+        
+        # Color the cube with action color
+        action_color = action_colors[i].cpu().numpy() if torch.is_tensor(action_colors[i]) else action_colors[i]
+        cube.paint_uniform_color(action_color)
+        
+        geometries.append(cube)
+    
+    # Create coordinate frame for reference
+    coordinate_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
+        size=cube_size * 0.1, origin=[0, 0, 0]
+    )
+    geometries.append(coordinate_frame)
+    
+    # Visualize
+    o3d.visualization.draw_geometries(
+        geometries,
+        window_name="Voxel Grid with Action Cubes",
+        width=1200,
+        height=800,
+        point_show_normal=False,
+        mesh_show_back_face=True
+    )
+
+
 def place_pc_in_cube(
     pc, app_pc=None, with_mean_or_bounds=True, scene_bounds=None, no_op=False
 ):
