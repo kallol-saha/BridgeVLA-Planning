@@ -138,6 +138,8 @@ def train(cfg, agent: PreprocessAgent, data_loader, cameras=["front", "left_shou
             reduced_loss = reduce_value(loss_value, average=True)
             epoch_losses[key].append(reduced_loss)
 
+    print()
+
     if rank == 0:
         log = print_loss_log(agent)
     avg_losses = {key: sum(values)/len(values) for key, values in epoch_losses.items()}
@@ -179,7 +181,7 @@ def get_logdir(cmd_args, exp_cfg,dist):
     if dist.get_rank() == 0:
         os.makedirs(log_dir, exist_ok=True)
     trial_time=get_time()
-    log_dir = os.path.join(log_dir,f"trial_{trial_time}")
+    log_dir = os.path.join(log_dir,f"train_run_{trial_time}")
     if dist.get_rank() == 0:
         os.makedirs(log_dir, exist_ok=True)
     return log_dir
@@ -288,7 +290,7 @@ def experiment(cmd_args):
     EPOCHS = exp_cfg.epochs
     data_folder=cmd_args.data_folder            
 
-    log_dir = get_logdir(cmd_args, exp_cfg,dist)
+    log_dir = get_logdir(cmd_args, exp_cfg, dist)
     t_start = time.time()
 
     # !!! Dataset loading:
@@ -372,12 +374,13 @@ def experiment(cmd_args):
         exp_cfg.freeze()
 
     # Initialize Logging =>> W&B
-    # if dist.get_rank() == 0:
-    #     wandb.login(key="")
-    #     if  cmd_args.debug:
-    #         wandb.init(entity="", project="3DVLA_RVT_opensource", name=os.path.dirname(log_dir),mode="disabled")
-    #     else:
-    #         wandb.init(entity="", project="3DVLA_RVT_opensource", name=os.path.dirname(log_dir))
+    if dist.get_rank() == 0:
+        wandb.login()
+        wandb.init(project="PerAct_Planning_cracker_box", 
+                   name=os.path.dirname(log_dir))
+        # if  cmd_args.debug:
+        #     wandb.init(entity="", project="3DVLA_RVT_opensource", name=os.path.dirname(log_dir),mode="disabled")
+        # else:
 
 
     print("Start training ...", flush=True)
@@ -418,6 +421,7 @@ if __name__ == "__main__":
     parser.add_argument("--exp_note", type=str, default="")
     parser.add_argument("--log_dir", type=str, default="/data/kallol/BridgeVLA_data/GEMBench/logs")
     parser.add_argument("--data_folder", type=str, default="/data/kallol/BridgeVLA_data/GEMBench/train_dataset")
+    parser.add_argument("--val_data_folder", type=str, default="/data/kallol/BridgeVLA_data/GEMBench/val_dataset")
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--ep_per_task", type=int, default=10000) # use all data
     parser.add_argument("--freeze_vision_tower", action="store_true")

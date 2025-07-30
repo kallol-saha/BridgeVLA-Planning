@@ -11,11 +11,11 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": [
-                "--debug",
+                // "--debug",
                 "--freeze_vision_tower",
                 "--load_pretrain",
                 "--ep_per_task",
-                "1"
+                "2"
             ]
         },
         {

@@ -147,7 +147,7 @@ class Shelf_Packing_Dataset(torch.utils.data.Dataset):
 
         
     def construct_dataset(self, ep_per_task):
-        instruction_path = os.path.join(self.data_path, "taskvars_instructions_shelf_packing.json")
+        instruction_path = os.path.join(self.data_path, "taskvars_instructions_shelf_packing_cracker_box.json")
         instruction_dict = json.load(open(instruction_path, "r"))
         
         episode_path = os.path.join(self.data_path, "keysteps_bbox/seed0")
